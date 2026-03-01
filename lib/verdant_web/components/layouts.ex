@@ -170,16 +170,14 @@ defmodule VerdantWeb.Layouts do
       <button
         class="btn btn-ghost btn-xs btn-square"
         title="Light theme"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="verdant"
+        phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "verdant"})}
       >
         <.icon name="hero-sun-micro" class="size-4" />
       </button>
       <button
         class="btn btn-ghost btn-xs btn-square"
         title="Dark theme"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="verdant-dark"
+        phx-click={JS.dispatch("phx:set-theme", detail: %{theme: "verdant-dark"})}
       >
         <.icon name="hero-moon-micro" class="size-4" />
       </button>

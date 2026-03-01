@@ -55,7 +55,7 @@
 @plugin "../vendor/daisyui-theme" {
   name: "verdant-dark";
   default: false;
-  prefersdark: true;
+  prefersdark: false;
   color-scheme: "dark";
   --color-base-100: oklch(20% 0.015 160);
   --color-base-200: oklch(16% 0.012 160);

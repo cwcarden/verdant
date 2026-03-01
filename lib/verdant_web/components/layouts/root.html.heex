@@ -24,7 +24,7 @@
         const saved = localStorage.getItem("phx:theme");
         if (saved) setTheme(saved);
         window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
+        window.addEventListener("phx:set-theme", (e) => setTheme(e.detail.theme));
       })();
     </script>
   </head>
