@@ -25,11 +25,9 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 verdant-*.tar
 
-# Ignore assets that are produced by build tools.
-/priv/static/assets/
-
-# Ignore digested assets cache.
-/priv/static/cache_manifest.json
+# Assets are pre-built on dev machine and committed so the Pi (ARMv6) doesn't
+# need esbuild/tailwind binaries, which don't exist for ARMv6.
+# Run `mix assets.deploy` on your Mac before committing changes to CSS/JS.
 
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
