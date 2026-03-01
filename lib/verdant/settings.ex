@@ -20,7 +20,8 @@ defmodule Verdant.Settings do
     "email_from" => "",
     "email_to" => "",
     "notifications_enabled" => "false",
-    "master_valve_pin" => "2"
+    "master_valve_pin" => "2",
+    "timezone" => "America/Chicago"
   }
 
   def get(key, default \\ nil) do

@@ -15,7 +15,9 @@ defmodule VerdantWeb.SchedulesLive do
      |> assign(:schedules, schedules)
      |> assign(:zones, zones)
      |> assign(:editing_schedule, nil)
-     |> assign(:form, nil)}
+     |> assign(:form, nil)
+     |> assign(:creating, false)
+     |> assign(:new_form, nil)}
   end
 
   def handle_event("edit_schedule", %{"id" => id}, socket) do
@@ -33,6 +35,64 @@ defmodule VerdantWeb.SchedulesLive do
      socket
      |> assign(:editing_schedule, nil)
      |> assign(:form, nil)}
+  end
+
+  def handle_event("new_schedule", _params, socket) do
+    # Pre-select every day so a new schedule is immediately functional
+    changeset = Schedules.change_schedule(%Verdant.Schedules.Schedule{days_of_week: "0,1,2,3,4,5,6"})
+
+    {:noreply,
+     socket
+     |> assign(:creating, true)
+     |> assign(:editing_schedule, nil)
+     |> assign(:form, nil)
+     |> assign(:new_form, to_form(changeset))}
+  end
+
+  def handle_event("cancel_create", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:creating, false)
+     |> assign(:new_form, nil)}
+  end
+
+  def handle_event("create_schedule", %{"schedule" => params}, socket) do
+    params =
+      case Map.get(params, "days_of_week") do
+        days when is_list(days) -> Map.put(params, "days_of_week", Enum.join(days, ","))
+        nil -> Map.put(params, "days_of_week", "")
+        _ -> params
+      end
+
+    case Schedules.create_schedule(params) do
+      {:ok, _new_schedule} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Schedule created")
+         |> assign(:schedules, Schedules.list_schedules())
+         |> assign(:creating, false)
+         |> assign(:new_form, nil)}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :new_form, to_form(changeset))}
+    end
+  end
+
+  def handle_event("delete_schedule", %{"id" => id}, socket) do
+    schedule = Schedules.get_schedule!(id)
+
+    case Schedules.delete_schedule(schedule) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Schedule deleted")
+         |> assign(:schedules, Schedules.list_schedules())
+         |> assign(:editing_schedule, nil)
+         |> assign(:form, nil)}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to delete schedule")}
+    end
   end
 
   def handle_event("toggle_schedule", %{"id" => id}, socket) do
@@ -56,6 +116,16 @@ defmodule VerdantWeb.SchedulesLive do
   def handle_event("save_schedule", %{"schedule" => params}, socket) do
     schedule = socket.assigns.editing_schedule
 
+    # HTML sends days checkboxes as a list (["0","2","3"]) when checked, or
+    # omits the key entirely when nothing is checked.  Ecto's :string cast
+    # can't handle a list, so we normalise it to a comma-separated string here.
+    params =
+      case Map.get(params, "days_of_week") do
+        days when is_list(days) -> Map.put(params, "days_of_week", Enum.join(days, ","))
+        nil -> Map.put(params, "days_of_week", "")
+        _ -> params
+      end
+
     case Schedules.update_schedule(schedule, params) do
       {:ok, _updated} ->
         {:noreply,
@@ -72,7 +142,7 @@ defmodule VerdantWeb.SchedulesLive do
 
   def handle_event(
         "update_zone_runtime",
-        %{"schedule_id" => sid, "zone_id" => zid, "runtime" => rt},
+        %{"schedule_id" => sid, "zone_id" => zid, "value" => rt},
         socket
       ) do
     Schedules.upsert_schedule_zone(%{
@@ -120,10 +190,63 @@ defmodule VerdantWeb.SchedulesLive do
     ~H"""
     <Layouts.app flash={@flash} active_tab={@active_tab}>
       <div class="space-y-6">
-        <div>
-          <h1 class="text-2xl font-bold">Schedules</h1>
-          <p class="text-sm text-base-content/50 mt-0.5">Configure automated watering schedules</p>
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold">Schedules</h1>
+            <p class="text-sm text-base-content/50 mt-0.5">Configure automated watering schedules</p>
+          </div>
+          <button phx-click="new_schedule" class="btn btn-primary btn-sm gap-1.5">
+            <.icon name="hero-plus" class="size-4" /> New Schedule
+          </button>
         </div>
+
+        <%!-- New schedule create form --%>
+        <%= if @creating do %>
+          <div class="card bg-base-100 shadow-sm border-2 border-primary/30">
+            <div class="card-body p-5">
+              <h2 class="font-bold text-lg">New Schedule</h2>
+              <.form for={@new_form} phx-submit="create_schedule">
+                <div class="space-y-3 mt-2">
+                  <div>
+                    <label class="label label-text text-xs">Name</label>
+                    <.input field={@new_form[:name]} class="input input-bordered input-sm w-full" placeholder="e.g. Morning Run" />
+                  </div>
+                  <div>
+                    <label class="label label-text text-xs">Description (optional)</label>
+                    <.input field={@new_form[:label]} class="input input-bordered input-sm w-full" placeholder="e.g. Front yard zones" />
+                  </div>
+                  <div>
+                    <label class="label label-text text-xs">Start Time</label>
+                    <.input type="time" field={@new_form[:start_time]} class="input input-bordered input-sm w-full" />
+                  </div>
+                  <div>
+                    <label class="label label-text text-xs">Days</label>
+                    <div class="flex gap-1.5 flex-wrap">
+                      <%= for {name, idx} <- Enum.with_index(@day_names) do %>
+                        <label class="cursor-pointer">
+                          <input
+                            type="checkbox"
+                            class="hidden peer"
+                            name="schedule[days_of_week][]"
+                            value={idx}
+                            checked={day_selected?(@new_form.source.data, idx)}
+                          />
+                          <span class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold bg-base-200 text-base-content/40 peer-checked:bg-primary peer-checked:text-primary-content cursor-pointer select-none">
+                            {String.slice(name, 0, 2)}
+                          </span>
+                        </label>
+                      <% end %>
+                    </div>
+                  </div>
+                  <div class="flex gap-2 mt-2">
+                    <button type="submit" class="btn btn-primary btn-sm flex-1">Create Schedule</button>
+                    <button type="button" phx-click="cancel_create" class="btn btn-ghost btn-sm">Cancel</button>
+                  </div>
+                </div>
+              </.form>
+            </div>
+          </div>
+        <% end %>
 
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
           <%= for schedule <- @schedules do %>
@@ -186,6 +309,14 @@ defmodule VerdantWeb.SchedulesLive do
               class="btn btn-ghost btn-sm btn-square"
             >
               <.icon name="hero-pencil-square" class="size-4" />
+            </button>
+            <button
+              phx-click="delete_schedule"
+              phx-value-id={@schedule.id}
+              phx-confirm={"Delete \"#{@schedule.name}\"? This cannot be undone."}
+              class="btn btn-ghost btn-sm btn-square text-error"
+            >
+              <.icon name="hero-trash" class="size-4" />
             </button>
           </div>
         </div>
@@ -255,7 +386,11 @@ defmodule VerdantWeb.SchedulesLive do
             <.form for={@form} phx-submit="save_schedule">
               <div class="space-y-3">
                 <div>
-                  <label class="label label-text text-xs">Label</label>
+                  <label class="label label-text text-xs">Name</label>
+                  <.input field={@form[:name]} class="input input-bordered input-sm w-full" />
+                </div>
+                <div>
+                  <label class="label label-text text-xs">Description</label>
                   <.input field={@form[:label]} class="input input-bordered input-sm w-full" />
                 </div>
                 <div>

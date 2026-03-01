@@ -37,6 +37,34 @@ defmodule Verdant.Watering do
     |> Repo.one()
   end
 
+  def list_active_sessions do
+    WateringSession
+    |> where([s], is_nil(s.ended_at) and s.skipped == false)
+    |> order_by(asc: :started_at)
+    |> preload(:zone)
+    |> Repo.all()
+  end
+
+  @doc """
+  End any sessions that were left open by a previous process run (e.g. app restart
+  while a zone was running). Called once on Runner startup.
+  """
+  def end_orphaned_sessions do
+    require Logger
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    {count, _} =
+      WateringSession
+      |> where([s], is_nil(s.ended_at) and s.skipped == false)
+      |> Repo.update_all(set: [ended_at: now])
+
+    if count > 0 do
+      Logger.info("[Watering] Cleaned up #{count} orphaned session(s) from a previous run")
+    end
+
+    :ok
+  end
+
   def today_usage do
     today = DateTime.utc_now() |> DateTime.to_date()
     start_of_day = DateTime.new!(today, ~T[00:00:00], "Etc/UTC")

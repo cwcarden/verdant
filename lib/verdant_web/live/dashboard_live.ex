@@ -1,17 +1,24 @@
 defmodule VerdantWeb.DashboardLive do
   use VerdantWeb, :live_view
-  alias Verdant.{Zones, Weather, Watering, Irrigation}
+  alias Verdant.{Zones, Weather, Watering, Irrigation, Schedules, LocalTime}
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Irrigation.subscribe()
+      Process.send_after(self(), :tick, 30_000)
     end
 
     {:ok,
      socket
      |> assign(:page_title, "Dashboard")
      |> assign(:active_tab, :dashboard)
+     |> assign(:current_time, LocalTime.now())
      |> load_data()}
+  end
+
+  def handle_info(:tick, socket) do
+    Process.send_after(self(), :tick, 30_000)
+    {:noreply, assign(socket, :current_time, LocalTime.now())}
   end
 
   def handle_info({:watering_started, _info}, socket), do: {:noreply, load_data(socket)}
@@ -22,16 +29,19 @@ defmodule VerdantWeb.DashboardLive do
   defp load_data(socket) do
     zones = Zones.list_zones()
     weather = Weather.latest_reading()
-    active_session = Watering.get_active_session()
+    active_sessions = Watering.list_active_sessions()
     today_seconds = Watering.today_usage()
     recent = Watering.list_recent_sessions(5)
+    upcoming_runs = Schedules.upcoming_runs()
 
     socket
+    |> assign(:current_time, LocalTime.now())
     |> assign(:zones, zones)
     |> assign(:weather, weather)
-    |> assign(:active_session, active_session)
+    |> assign(:active_sessions, active_sessions)
     |> assign(:today_minutes, div(today_seconds, 60))
     |> assign(:recent_sessions, recent)
+    |> assign(:upcoming_runs, upcoming_runs)
   end
 
   def render(assigns) do
@@ -43,11 +53,27 @@ defmodule VerdantWeb.DashboardLive do
           <div>
             <h1 class="text-2xl font-bold text-base-content">Dashboard</h1>
             <p class="text-sm text-base-content/50 mt-0.5">
-              {Calendar.strftime(DateTime.utc_now(), "%A, %B %d %Y")}
+              {Calendar.strftime(@current_time, "%A, %B %d %Y")}
+              · {Calendar.strftime(@current_time, "%I:%M %p")}
             </p>
+            <%= if @upcoming_runs != [] do %>
+              <div class="mt-1 space-y-0.5">
+                <%= for {sched_name, run_date, run_time} <- @upcoming_runs do %>
+                  <p class="text-xs text-base-content/40 flex items-center gap-1">
+                    <.icon name="hero-clock" class="size-3 shrink-0" />
+                    <span>
+                      {sched_name}
+                      <span class="text-base-content/30">·</span>
+                      {format_schedule_date(run_date, DateTime.to_date(@current_time))}
+                      at {format_start_time(run_time)}
+                    </span>
+                  </p>
+                <% end %>
+              </div>
+            <% end %>
           </div>
           <div class="flex items-center gap-2">
-            <%= if @active_session do %>
+            <%= if @active_sessions != [] do %>
               <span class="badge badge-success gap-1 animate-pulse">
                 <span class="size-2 rounded-full bg-success-content inline-block"></span>
                 Watering Active
@@ -62,9 +88,15 @@ defmodule VerdantWeb.DashboardLive do
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <.stat_card
             label="Active Zone"
-            value={if @active_session, do: @active_session.zone_name, else: "—"}
+            value={
+              case @active_sessions do
+                [] -> "—"
+                [s] -> s.zone_name
+                sessions -> "#{length(sessions)} zones"
+              end
+            }
             icon="hero-play-circle"
-            color={if @active_session, do: "text-success", else: "text-base-content/30"}
+            color={if @active_sessions != [], do: "text-success", else: "text-base-content/30"}
           />
           <.stat_card
             label="Today's Runtime"
@@ -93,7 +125,7 @@ defmodule VerdantWeb.DashboardLive do
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <%!-- Active watering --%>
           <div class="lg:col-span-2">
-            <.active_watering_card session={@active_session} />
+            <.active_watering_card sessions={@active_sessions} />
           </div>
 
           <%!-- Weather snapshot --%>
@@ -109,7 +141,7 @@ defmodule VerdantWeb.DashboardLive do
               <h2 class="card-title text-base">Zone Status</h2>
               <div class="grid grid-cols-2 gap-2 mt-2">
                 <%= for zone <- @zones do %>
-                  <.zone_status_chip zone={zone} active_session={@active_session} />
+                  <.zone_status_chip zone={zone} active_sessions={@active_sessions} />
                 <% end %>
               </div>
             </div>
@@ -162,49 +194,51 @@ defmodule VerdantWeb.DashboardLive do
     """
   end
 
-  attr :session, :any, default: nil
+  attr :sessions, :list, default: []
 
   defp active_watering_card(assigns) do
     ~H"""
     <div class="card bg-base-100 shadow-sm h-full">
       <div class="card-body p-4">
         <h2 class="card-title text-base">Active Watering</h2>
-        <%= if @session do %>
+        <%= if @sessions != [] do %>
           <div class="mt-3 space-y-3">
-            <div class="flex items-center gap-3">
-              <div class="size-12 rounded-full bg-success/10 flex items-center justify-center">
-                <.icon name="hero-play-circle" class="size-6 text-success" />
-              </div>
-              <div>
-                <p class="font-semibold text-lg">{@session.zone_name}</p>
-                <p class="text-sm text-base-content/50">
-                  Started {Calendar.strftime(@session.started_at, "%I:%M %p")}
-                </p>
-              </div>
-            </div>
-            <%= if @session.planned_duration_seconds do %>
-              <div>
-                <div class="flex justify-between text-xs text-base-content/50 mb-1">
-                  <span>Progress</span>
-                  <span>
-                    {div(DateTime.diff(DateTime.utc_now(), @session.started_at), 60)}m / {div(
-                      @session.planned_duration_seconds,
-                      60
-                    )}m
-                  </span>
+            <%= for session <- @sessions do %>
+              <div class="flex items-center gap-3">
+                <div class="size-10 rounded-full bg-success/10 flex items-center justify-center shrink-0">
+                  <.icon name="hero-play-circle" class="size-5 text-success" />
                 </div>
-                <progress
-                  class="progress progress-success w-full"
-                  value={
-                    min(
-                      DateTime.diff(DateTime.utc_now(), @session.started_at),
-                      @session.planned_duration_seconds
-                    )
-                  }
-                  max={@session.planned_duration_seconds}
-                >
-                </progress>
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold">{session.zone_name}</p>
+                  <p class="text-sm text-base-content/50">
+                    Started {Calendar.strftime(LocalTime.to_local(session.started_at), "%I:%M %p")}
+                  </p>
+                </div>
               </div>
+              <%= if session.planned_duration_seconds do %>
+                <div>
+                  <div class="flex justify-between text-xs text-base-content/50 mb-1">
+                    <span>Progress</span>
+                    <span>
+                      {div(DateTime.diff(DateTime.utc_now(), session.started_at), 60)}m / {div(
+                        session.planned_duration_seconds,
+                        60
+                      )}m
+                    </span>
+                  </div>
+                  <progress
+                    class="progress progress-success w-full"
+                    value={
+                      min(
+                        DateTime.diff(DateTime.utc_now(), session.started_at),
+                        session.planned_duration_seconds
+                      )
+                    }
+                    max={session.planned_duration_seconds}
+                  >
+                  </progress>
+                </div>
+              <% end %>
             <% end %>
           </div>
         <% else %>
@@ -260,7 +294,7 @@ defmodule VerdantWeb.DashboardLive do
               />
             </div>
             <p class="text-xs text-base-content/40">
-              Updated {Calendar.strftime(@weather.recorded_at, "%I:%M %p")}
+              Updated {Calendar.strftime(LocalTime.to_local(@weather.recorded_at), "%I:%M %p")}
             </p>
           </div>
         <% else %>
@@ -289,14 +323,14 @@ defmodule VerdantWeb.DashboardLive do
   end
 
   attr :zone, :any, required: true
-  attr :active_session, :any, default: nil
+  attr :active_sessions, :list, default: []
 
   defp zone_status_chip(assigns) do
     assigns =
       assign(
         assigns,
         :is_active,
-        assigns.active_session && assigns.active_session.zone_id == assigns.zone.id
+        Enum.any?(assigns.active_sessions, &(&1.zone_id == assigns.zone.id))
       )
 
     ~H"""
@@ -322,6 +356,24 @@ defmodule VerdantWeb.DashboardLive do
     """
   end
 
+  # ── Schedule helpers ──────────────────────────────────────────────────────────
+
+  # Converts "14:30" → "2:30 PM"
+  defp format_start_time(hhmm) do
+    [h_str, m_str] = String.split(hhmm, ":")
+    h = String.to_integer(h_str)
+    {period, h12} = if h < 12, do: {"AM", (if h == 0, do: 12, else: h)}, else: {"PM", (if h == 12, do: 12, else: h - 12)}
+    "#{h12}:#{m_str} #{period}"
+  end
+
+  defp format_schedule_date(date, today) do
+    cond do
+      date == today -> "Today"
+      date == Date.add(today, 1) -> "Tomorrow"
+      true -> Calendar.strftime(date, "%a, %b %-d")
+    end
+  end
+
   attr :session, :any, required: true
 
   defp activity_row(assigns) do
@@ -333,7 +385,7 @@ defmodule VerdantWeb.DashboardLive do
       <div class="flex-1 min-w-0">
         <p class="text-sm font-medium truncate">{@session.zone_name}</p>
         <p class="text-xs text-base-content/40">
-          {Calendar.strftime(@session.started_at, "%b %d, %I:%M %p")}
+          {Calendar.strftime(LocalTime.to_local(@session.started_at), "%b %d, %I:%M %p")}
           <%= if @session.actual_duration_seconds do %>
             · {div(@session.actual_duration_seconds, 60)}m
           <% end %>

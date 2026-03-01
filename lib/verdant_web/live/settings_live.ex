@@ -1,8 +1,23 @@
 defmodule VerdantWeb.SettingsLive do
   use VerdantWeb, :live_view
-  alias Verdant.Settings
+  alias Verdant.{Settings, LocalTime}
 
   @setting_groups [
+    %{
+      id: :system,
+      title: "System",
+      icon: "hero-cog-6-tooth",
+      description: "General system configuration",
+      fields: [
+        %{
+          key: "timezone",
+          label: "Timezone",
+          type: "select",
+          placeholder: "",
+          options: :us_timezones
+        }
+      ]
+    },
     %{
       id: :weather_api,
       title: "Ambient Weather API",
@@ -184,29 +199,44 @@ defmodule VerdantWeb.SettingsLive do
                         <label class="label">
                           <span class="label-text text-sm font-medium">{field.label}</span>
                         </label>
-                        <%= if field.type == "checkbox" do %>
-                          <label class="flex items-center gap-3 cursor-pointer">
-                            <input
-                              type="checkbox"
+                        <%= cond do %>
+                          <% field.type == "select" -> %>
+                            <select
                               name={"settings[#{field.key}]"}
-                              class="toggle toggle-primary"
-                              value="true"
-                              checked={Map.get(@settings, field.key) == "true"}
+                              class="select select-bordered select-sm w-full"
+                            >
+                              <%= for {opt_label, opt_value} <- LocalTime.us_timezones() do %>
+                                <option
+                                  value={opt_value}
+                                  selected={Map.get(@settings, field.key) == opt_value}
+                                >
+                                  {opt_label}
+                                </option>
+                              <% end %>
+                            </select>
+                          <% field.type == "checkbox" -> %>
+                            <label class="flex items-center gap-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                name={"settings[#{field.key}]"}
+                                class="toggle toggle-primary"
+                                value="true"
+                                checked={Map.get(@settings, field.key) == "true"}
+                              />
+                              <span class="text-sm text-base-content/60">
+                                {if Map.get(@settings, field.key) == "true",
+                                  do: "Enabled",
+                                  else: "Disabled"}
+                              </span>
+                            </label>
+                          <% true -> %>
+                            <input
+                              type={field.type}
+                              name={"settings[#{field.key}]"}
+                              class="input input-bordered input-sm w-full"
+                              placeholder={field.placeholder}
+                              value={Map.get(@settings, field.key, "")}
                             />
-                            <span class="text-sm text-base-content/60">
-                              {if Map.get(@settings, field.key) == "true",
-                                do: "Enabled",
-                                else: "Disabled"}
-                            </span>
-                          </label>
-                        <% else %>
-                          <input
-                            type={field.type}
-                            name={"settings[#{field.key}]"}
-                            class="input input-bordered input-sm w-full"
-                            placeholder={field.placeholder}
-                            value={Map.get(@settings, field.key, "")}
-                          />
                         <% end %>
                       </div>
                     <% end %>

@@ -69,6 +69,8 @@ defmodule Verdant.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
+      # Timezone database — pure Elixir, handles DST automatically.
+      {:tz, "~> 0.26"},
       # GPIO — only needed on the Pi (prod). Dev uses the stub adapter.
       {:circuits_gpio, "~> 2.0", only: :prod}
     ]

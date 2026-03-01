@@ -10,7 +10,7 @@ defmodule Verdant.Irrigation.Scheduler do
   use GenServer
   require Logger
 
-  alias Verdant.{Schedules, Weather}
+  alias Verdant.{Schedules, Weather, LocalTime}
   alias Verdant.Irrigation.Runner
 
   # check every 60 seconds
@@ -39,7 +39,7 @@ defmodule Verdant.Irrigation.Scheduler do
   end
 
   defp maybe_reset_daily(state) do
-    today = Date.utc_today()
+    today = LocalTime.today()
     # Reset ran_today at the start of a new day
     if MapSet.size(state.ran_today) > 0 do
       last_key = state.ran_today |> MapSet.to_list() |> List.first()
@@ -56,9 +56,10 @@ defmodule Verdant.Irrigation.Scheduler do
   end
 
   defp check_and_run(state) do
-    now = NaiveDateTime.local_now()
+    now = LocalTime.now()
+    today = DateTime.to_date(now)
     # 0=Sun, 6=Sat
-    today_dow = Date.day_of_week(NaiveDateTime.to_date(now), :sunday) - 1
+    today_dow = Date.day_of_week(today, :sunday) - 1
 
     current_hhmm =
       "#{String.pad_leading(to_string(now.hour), 2, "0")}:#{String.pad_leading(to_string(now.minute), 2, "0")}"
@@ -66,7 +67,7 @@ defmodule Verdant.Irrigation.Scheduler do
     schedules = Schedules.list_schedules()
 
     Enum.reduce(schedules, state, fn schedule, acc ->
-      key = {schedule.id, Date.utc_today()}
+      key = {schedule.id, today}
 
       cond do
         not schedule.enabled ->

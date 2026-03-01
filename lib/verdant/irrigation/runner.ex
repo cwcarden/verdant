@@ -1,24 +1,20 @@
 defmodule Verdant.Irrigation.Runner do
   @moduledoc """
-  GenServer that manages the active irrigation cycle.
+  GenServer that manages active irrigation cycles.
 
-  Responsibilities:
-  - Open/close GPIO pins for master valve and zone relays
-  - Log watering sessions to the database
-  - Sequence multiple zones for schedule runs
-  - Broadcast state changes over PubSub so LiveViews update in real time
+  Supports concurrent manual zone runs: multiple zones can be open at the same
+  time when started manually. Schedule runs remain sequential (queue-based).
 
   Pin logic (active-LOW relays):
   - write(ref, 0) → valve OPEN  (relay energized)
   - write(ref, 1) → valve CLOSED (relay de-energized)
 
   Sequence for a zone run:
-  1. Open master valve (GPIO 2 default)
-  2. Wait warmup_seconds (keeps pressure stable)
+  1. Open master valve (GPIO 2 default) – once, shared across all running zones
+  2. Wait warmup_seconds (keeps pressure stable) on first zone start
   3. Open zone valve
   4. After runtime_seconds: close zone valve
-  5. If more zones queued → open next zone (master stays open)
-  6. When all zones done → close master valve
+  5. When all zones done and queue empty → close master valve
   """
 
   use GenServer
@@ -36,14 +32,19 @@ defmodule Verdant.Irrigation.Runner do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @doc "Start a single zone manually. Returns :ok or {:error, :busy | :disabled}."
+  @doc "Start a single zone manually. Concurrent zones are allowed; returns :ok or {:error, reason}."
   def start_zone(zone, runtime_seconds) do
     GenServer.call(__MODULE__, {:start_zone, zone, runtime_seconds})
   end
 
+  @doc "Stop a specific zone by zone_id. Returns :ok or {:error, :not_found}."
+  def stop_zone(zone_id) do
+    GenServer.call(__MODULE__, {:stop_zone, zone_id})
+  end
+
   @doc """
   Start a schedule run. zones_with_times is a list of {%Zone{}, runtime_seconds}.
-  Returns :ok or {:error, reason}.
+  Returns {:error, :busy} if any zone is currently active.
   """
   def start_schedule(schedule, zones_with_times) do
     GenServer.call(__MODULE__, {:start_schedule, schedule, zones_with_times})
@@ -66,45 +67,77 @@ defmodule Verdant.Irrigation.Runner do
 
   @impl true
   def init(_opts) do
-    state = %{
+    # End any DB sessions left open from a previous run (e.g. app restart mid-water).
+    Watering.end_orphaned_sessions()
+    {:ok, initial_state()}
+  end
+
+  defp initial_state do
+    %{
       master_ref: nil,
-      # %{zone, session, zone_ref, timer_ref, planned_seconds, started_at}
-      active: nil,
-      # [{zone, runtime_seconds}] remaining in schedule
+      # list of %{zone, session, zone_ref, timer_ref, planned_seconds, started_at}
+      active_zones: [],
+      # [{zone, runtime_seconds}] remaining in a schedule run
       queue: [],
       schedule_id: nil,
-      schedule_name: nil
+      schedule_name: nil,
+      # ref for the pending {:begin_zone} send_after during master-valve warmup
+      warmup_timer_ref: nil
     }
-
-    {:ok, state}
   end
 
   # ── handle_call ──────────────────────────────────────────────────────────────
 
   @impl true
-  def handle_call({:start_zone, _zone, _runtime_seconds}, _from, %{active: active} = state)
-      when not is_nil(active) do
-    {:reply, {:error, :busy}, state}
+  def handle_call({:start_zone, zone, runtime_seconds}, _from, state) do
+    # Concurrent manual zones are allowed — no :busy check here.
+    if state.master_ref do
+      # Master already open; skip warmup and begin immediately.
+      Process.send_after(self(), {:begin_zone, zone, runtime_seconds, "manual", nil, nil}, 0)
+      {:reply, :ok, state}
+    else
+      case open_master_valve(state) do
+        {:ok, master_ref} ->
+          warmup = Settings.get_integer("master_valve_warmup_seconds", 2)
+
+          warmup_ref =
+            Process.send_after(
+              self(),
+              {:begin_zone, zone, runtime_seconds, "manual", nil, nil},
+              warmup * 1000
+            )
+
+          {:reply, :ok, %{state | master_ref: master_ref, warmup_timer_ref: warmup_ref}}
+
+        {:error, reason} ->
+          Logger.error("[Runner] Failed to open master valve: #{inspect(reason)}")
+          {:reply, {:error, reason}, state}
+      end
+    end
   end
 
-  def handle_call({:start_zone, _zone, _runtime_seconds} = msg, _from, state) do
-    {:start_zone, zone, runtime_seconds} = msg
+  @impl true
+  def handle_call({:stop_zone, zone_id}, _from, state) do
+    case Enum.find(state.active_zones, &(&1.zone.id == zone_id)) do
+      nil ->
+        {:reply, {:error, :not_found}, state}
 
-    case open_master_valve(state) do
-      {:ok, master_ref} ->
-        warmup = Settings.get_integer("master_valve_warmup_seconds", 2)
+      active ->
+        Process.cancel_timer(active.timer_ref)
+        GPIO.write(active.zone_ref, 1)
+        GPIO.close(active.zone_ref)
+        actual = DateTime.diff(DateTime.utc_now(), active.started_at)
+        Watering.end_session(active.session)
 
-        Process.send_after(
-          self(),
-          {:begin_zone, zone, runtime_seconds, "manual", nil, nil},
-          warmup * 1000
+        broadcast(
+          {:watering_stopped,
+           %{zone_name: active.zone.name, zone_id: zone_id, actual_seconds: actual, reason: :manual}}
         )
 
-        {:reply, :ok, %{state | master_ref: master_ref, queue: []}}
-
-      {:error, reason} ->
-        Logger.error("[Runner] Failed to open master valve: #{inspect(reason)}")
-        {:reply, {:error, reason}, state}
+        new_active_zones = Enum.reject(state.active_zones, &(&1.zone.id == zone_id))
+        state = %{state | active_zones: new_active_zones}
+        state = maybe_close_master(state)
+        {:reply, :ok, state}
     end
   end
 
@@ -113,8 +146,8 @@ defmodule Verdant.Irrigation.Runner do
     {:reply, {:error, :no_zones}, state}
   end
 
-  def handle_call({:start_schedule, _schedule, _zones}, _from, %{active: active} = state)
-      when not is_nil(active) do
+  # Schedules don't run concurrently with active zones.
+  def handle_call({:start_schedule, _schedule, _zones}, _from, %{active_zones: [_ | _]} = state) do
     {:reply, {:error, :busy}, state}
   end
 
@@ -123,11 +156,12 @@ defmodule Verdant.Irrigation.Runner do
       {:ok, master_ref} ->
         warmup = Settings.get_integer("master_valve_warmup_seconds", 2)
 
-        Process.send_after(
-          self(),
-          {:begin_zone, first_zone, first_runtime, "schedule", schedule.id, schedule.name},
-          warmup * 1000
-        )
+        warmup_ref =
+          Process.send_after(
+            self(),
+            {:begin_zone, first_zone, first_runtime, "schedule", schedule.id, schedule.name},
+            warmup * 1000
+          )
 
         {:reply, :ok,
          %{
@@ -135,7 +169,8 @@ defmodule Verdant.Irrigation.Runner do
            | master_ref: master_ref,
              queue: rest,
              schedule_id: schedule.id,
-             schedule_name: schedule.name
+             schedule_name: schedule.name,
+             warmup_timer_ref: warmup_ref
          }}
 
       {:error, reason} ->
@@ -152,7 +187,7 @@ defmodule Verdant.Irrigation.Runner do
   @impl true
   def handle_call(:status, _from, state) do
     status = %{
-      active: state.active,
+      active_zones: state.active_zones,
       queue_length: length(state.queue),
       schedule_id: state.schedule_id,
       schedule_name: state.schedule_name
@@ -174,7 +209,6 @@ defmodule Verdant.Irrigation.Runner do
 
     case GPIO.open(zone.gpio_pin, :output) do
       {:ok, zone_ref} ->
-        # open zone valve (active LOW)
         GPIO.write(zone_ref, 0)
 
         {:ok, session} =
@@ -185,7 +219,8 @@ defmodule Verdant.Irrigation.Runner do
             planned_duration_seconds: runtime_seconds
           })
 
-        timer_ref = Process.send_after(self(), :zone_complete, runtime_seconds * 1000)
+        # Use zone_id in the timer message so we know which zone completed.
+        timer_ref = Process.send_after(self(), {:zone_complete, zone.id}, runtime_seconds * 1000)
         now = DateTime.utc_now() |> DateTime.truncate(:second)
 
         active = %{
@@ -211,7 +246,13 @@ defmodule Verdant.Irrigation.Runner do
         )
 
         {:noreply,
-         %{state | active: active, schedule_id: schedule_id, schedule_name: schedule_name}}
+         %{
+           state
+           | active_zones: [active | state.active_zones],
+             schedule_id: schedule_id,
+             schedule_name: schedule_name,
+             warmup_timer_ref: nil
+         }}
 
       {:error, reason} ->
         Logger.error("[Runner] Failed to open zone pin #{zone.gpio_pin}: #{inspect(reason)}")
@@ -220,54 +261,46 @@ defmodule Verdant.Irrigation.Runner do
   end
 
   @impl true
-  def handle_info(:zone_complete, %{active: nil} = state), do: {:noreply, state}
+  def handle_info({:zone_complete, zone_id}, state) do
+    case Enum.find(state.active_zones, &(&1.zone.id == zone_id)) do
+      nil ->
+        # Already stopped manually; ignore the stale timer message.
+        {:noreply, state}
 
-  def handle_info(:zone_complete, state) do
-    %{active: active, queue: queue} = state
-    actual_seconds = DateTime.diff(DateTime.utc_now(), active.started_at)
+      active ->
+        actual_seconds = DateTime.diff(DateTime.utc_now(), active.started_at)
+        GPIO.write(active.zone_ref, 1)
+        GPIO.close(active.zone_ref)
+        Logger.info("[Runner] Zone '#{active.zone.name}' complete (#{actual_seconds}s)")
+        Watering.end_session(active.session)
 
-    # Close zone valve
-    GPIO.write(active.zone_ref, 1)
-    GPIO.close(active.zone_ref)
-    Logger.info("[Runner] Zone '#{active.zone.name}' complete (#{actual_seconds}s)")
-
-    # Log session end
-    Watering.end_session(active.session)
-
-    broadcast(
-      {:zone_complete,
-       %{
-         zone_name: active.zone.name,
-         zone_id: active.zone.id,
-         actual_seconds: actual_seconds
-       }}
-    )
-
-    state = %{state | active: nil}
-
-    case queue do
-      [{next_zone, next_runtime} | remaining] ->
-        # Next zone in schedule – master valve stays open
-        Process.send_after(
-          self(),
-          {:begin_zone, next_zone, next_runtime, "schedule", state.schedule_id,
-           state.schedule_name},
-          # 500ms gap between zones
-          500
+        broadcast(
+          {:zone_complete,
+           %{
+             zone_name: active.zone.name,
+             zone_id: zone_id,
+             actual_seconds: actual_seconds
+           }}
         )
 
-        {:noreply, %{state | queue: remaining}}
+        new_active_zones = Enum.reject(state.active_zones, &(&1.zone.id == zone_id))
+        state = %{state | active_zones: new_active_zones}
 
-      [] ->
-        # All zones done – close master valve
-        close_master_valve(state.master_ref)
+        case state.queue do
+          [{next_zone, next_runtime} | remaining] ->
+            # Next zone in schedule – master valve stays open
+            Process.send_after(
+              self(),
+              {:begin_zone, next_zone, next_runtime, "schedule", state.schedule_id,
+               state.schedule_name},
+              500
+            )
 
-        if state.schedule_id do
-          broadcast({:schedule_complete, %{schedule_name: state.schedule_name}})
-          Logger.info("[Runner] Schedule '#{state.schedule_name}' complete")
+            {:noreply, %{state | queue: remaining}}
+
+          [] ->
+            {:noreply, maybe_close_master(state)}
         end
-
-        {:noreply, %{state | master_ref: nil, schedule_id: nil, schedule_name: nil}}
     end
   end
 
@@ -279,8 +312,21 @@ defmodule Verdant.Irrigation.Runner do
 
   # ── Helpers ───────────────────────────────────────────────────────────────────
 
+  # Close master and broadcast schedule_complete only when nothing is running.
+  defp maybe_close_master(%{active_zones: [], queue: []} = state) do
+    close_master_valve(state.master_ref)
+
+    if state.schedule_id do
+      broadcast({:schedule_complete, %{schedule_name: state.schedule_name}})
+      Logger.info("[Runner] Schedule '#{state.schedule_name}' complete")
+    end
+
+    %{state | master_ref: nil, schedule_id: nil, schedule_name: nil}
+  end
+
+  defp maybe_close_master(state), do: state
+
   defp open_master_valve(state) do
-    # If master is already open (e.g. restart scenario), close it first
     if state.master_ref, do: close_master_valve(state.master_ref)
 
     master_pin = Settings.get_integer("master_valve_pin", 2)
@@ -288,7 +334,6 @@ defmodule Verdant.Irrigation.Runner do
 
     case GPIO.open(master_pin, :output) do
       {:ok, ref} ->
-        # open master valve
         GPIO.write(ref, 0)
         {:ok, ref}
 
@@ -306,30 +351,40 @@ defmodule Verdant.Irrigation.Runner do
     GPIO.close(ref)
   end
 
-  defp emergency_stop(%{active: nil, master_ref: nil} = state), do: state
-
   defp emergency_stop(state) do
-    # Cancel timer
-    if state.active && state.active.timer_ref do
-      Process.cancel_timer(state.active.timer_ref)
-    end
+    # Cancel any pending warmup timer so the zone never opens after a stop.
+    if state.warmup_timer_ref, do: Process.cancel_timer(state.warmup_timer_ref)
 
-    # Close zone valve
-    if state.active do
-      GPIO.write(state.active.zone_ref, 1)
-      GPIO.close(state.active.zone_ref)
-      actual = DateTime.diff(DateTime.utc_now(), state.active.started_at)
-      Watering.end_session(state.active.session)
+    # Stop every active zone.
+    Enum.each(state.active_zones, fn active ->
+      Process.cancel_timer(active.timer_ref)
+      GPIO.write(active.zone_ref, 1)
+      GPIO.close(active.zone_ref)
+      actual = DateTime.diff(DateTime.utc_now(), active.started_at)
+      Watering.end_session(active.session)
 
       broadcast(
         {:watering_stopped,
-         %{zone_name: state.active.zone.name, actual_seconds: actual, reason: :manual}}
+         %{zone_name: active.zone.name, zone_id: active.zone.id, actual_seconds: actual, reason: :manual}}
       )
+    end)
+
+    # If we were only in warmup (master open but no zone active yet), still
+    # broadcast a stop so the LiveView clears its state.
+    if state.active_zones == [] and state.master_ref != nil do
+      broadcast({:watering_stopped, %{zone_name: nil, zone_id: nil, actual_seconds: 0, reason: :manual}})
     end
 
-    # Close master valve
     close_master_valve(state.master_ref)
 
-    %{state | active: nil, master_ref: nil, queue: [], schedule_id: nil, schedule_name: nil}
+    %{
+      state
+      | active_zones: [],
+        master_ref: nil,
+        queue: [],
+        schedule_id: nil,
+        schedule_name: nil,
+        warmup_timer_ref: nil
+    }
   end
 end

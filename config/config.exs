@@ -60,6 +60,10 @@ config :logger, :default_formatter,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Use the tz library as the timezone database so DateTime.now!/1 and
+# DateTime.shift_zone!/2 work with IANA timezone names (e.g. "America/Chicago").
+config :elixir, :time_zone_database, Tz.TimeZoneDatabase
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
