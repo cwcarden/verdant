@@ -43,5 +43,6 @@ defmodule Verdant.Schedules do
     )
   end
 
-  def change_schedule(%Schedule{} = schedule, attrs \\ %{}), do: Schedule.changeset(schedule, attrs)
+  def change_schedule(%Schedule{} = schedule, attrs \\ %{}),
+    do: Schedule.changeset(schedule, attrs)
 end

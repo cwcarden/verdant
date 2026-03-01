@@ -20,7 +20,15 @@ defmodule Verdant.Zones.Zone do
 
   def changeset(zone, attrs) do
     zone
-    |> cast(attrs, [:name, :description, :gpio_pin, :position, :enabled, :water_heads, :flow_rate_gpm])
+    |> cast(attrs, [
+      :name,
+      :description,
+      :gpio_pin,
+      :position,
+      :enabled,
+      :water_heads,
+      :flow_rate_gpm
+    ])
     |> validate_required([:name, :gpio_pin, :position])
     |> validate_number(:gpio_pin, greater_than: 0, less_than: 28)
     |> validate_number(:position, greater_than: 0, less_than: 9)

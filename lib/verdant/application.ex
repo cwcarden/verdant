@@ -14,8 +14,8 @@ defmodule Verdant.Application do
        repos: Application.fetch_env!(:verdant, :ecto_repos), skip: skip_migrations?()},
       {DNSCluster, query: Application.get_env(:verdant, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Verdant.PubSub},
-      # Start a worker by calling: Verdant.Worker.start_link(arg)
-      # {Verdant.Worker, arg},
+      Verdant.Irrigation.Runner,
+      Verdant.Irrigation.Scheduler,
       # Start to serve requests, typically the last entry
       VerdantWeb.Endpoint
     ]

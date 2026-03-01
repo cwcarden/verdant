@@ -13,6 +13,7 @@ defmodule Verdant.Weather do
 
   def recent_readings(hours \\ 24) do
     since = DateTime.utc_now() |> DateTime.add(-hours * 3600) |> DateTime.truncate(:second)
+
     WeatherReading
     |> where([r], r.recorded_at >= ^since)
     |> order_by(desc: :recorded_at)
@@ -31,12 +32,16 @@ defmodule Verdant.Weather do
     mac = Settings.get("ambient_mac")
 
     if api_key && app_key && mac do
-      url = "https://rt.ambientweather.net/v1/devices/#{mac}?apiKey=#{api_key}&applicationKey=#{app_key}&limit=1"
+      url =
+        "https://rt.ambientweather.net/v1/devices/#{mac}?apiKey=#{api_key}&applicationKey=#{app_key}&limit=1"
+
       case Req.get(url) do
         {:ok, %{status: 200, body: [data | _]}} ->
           parse_and_store(data)
+
         {:ok, %{status: status}} ->
           {:error, "API returned status #{status}"}
+
         {:error, reason} ->
           {:error, reason}
       end
@@ -50,6 +55,7 @@ defmodule Verdant.Weather do
       case Map.get(data, "dateutc") do
         ms when is_integer(ms) ->
           DateTime.from_unix!(ms, :millisecond) |> DateTime.truncate(:second)
+
         _ ->
           DateTime.utc_now() |> DateTime.truncate(:second)
       end
@@ -80,6 +86,7 @@ defmodule Verdant.Weather do
 
   def should_skip_watering? do
     reading = latest_reading()
+
     if reading do
       skip_rules = [
         check_rain_hours(reading),
@@ -87,6 +94,7 @@ defmodule Verdant.Weather do
         check_wind_speed(reading),
         check_temperature(reading)
       ]
+
       Enum.find(skip_rules, fn {skip, _reason} -> skip end)
     else
       {false, nil}
@@ -95,6 +103,7 @@ defmodule Verdant.Weather do
 
   defp check_rain_hours(reading) do
     threshold = Settings.get_float("skip_rain_hours", 24.0)
+
     if reading.rain_daily_in && reading.rain_daily_in > 0 do
       hours_ago = DateTime.diff(DateTime.utc_now(), reading.recorded_at) / 3600
       {hours_ago < threshold, "Rain detected within #{threshold} hours"}
@@ -105,6 +114,7 @@ defmodule Verdant.Weather do
 
   defp check_rain_inches(reading) do
     threshold = Settings.get_float("skip_rain_inches", 0.25)
+
     if reading.rain_daily_in && reading.rain_daily_in >= threshold do
       {true, "Daily rain #{reading.rain_daily_in}\" >= #{threshold}\""}
     else
@@ -114,6 +124,7 @@ defmodule Verdant.Weather do
 
   defp check_wind_speed(reading) do
     threshold = Settings.get_float("skip_wind_mph", 25.0)
+
     if reading.wind_speed_mph && reading.wind_speed_mph >= threshold do
       {true, "Wind #{reading.wind_speed_mph} mph >= #{threshold} mph"}
     else
@@ -124,11 +135,14 @@ defmodule Verdant.Weather do
   defp check_temperature(reading) do
     min_temp = Settings.get_float("skip_temp_min", 32.0)
     max_temp = Settings.get_float("skip_temp_max", 110.0)
+
     cond do
       reading.temperature_f && reading.temperature_f < min_temp ->
         {true, "Temperature #{reading.temperature_f}°F below minimum #{min_temp}°F"}
+
       reading.temperature_f && reading.temperature_f > max_temp ->
         {true, "Temperature #{reading.temperature_f}°F above maximum #{max_temp}°F"}
+
       true ->
         {false, nil}
     end

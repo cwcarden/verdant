@@ -21,6 +21,7 @@ defmodule VerdantWeb.SchedulesLive do
   def handle_event("edit_schedule", %{"id" => id}, socket) do
     schedule = Schedules.get_schedule!(id)
     changeset = Schedules.change_schedule(schedule)
+
     {:noreply,
      socket
      |> assign(:editing_schedule, schedule)
@@ -36,12 +37,17 @@ defmodule VerdantWeb.SchedulesLive do
 
   def handle_event("toggle_schedule", %{"id" => id}, socket) do
     schedule = Schedules.get_schedule!(id)
+
     case Schedules.update_schedule(schedule, %{enabled: !schedule.enabled}) do
       {:ok, _} ->
         {:noreply,
          socket
-         |> put_flash(:info, if(schedule.enabled, do: "Schedule disabled", else: "Schedule enabled"))
+         |> put_flash(
+           :info,
+           if(schedule.enabled, do: "Schedule disabled", else: "Schedule enabled")
+         )
          |> assign(:schedules, Schedules.list_schedules())}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to update schedule")}
     end
@@ -58,22 +64,32 @@ defmodule VerdantWeb.SchedulesLive do
          |> assign(:schedules, Schedules.list_schedules())
          |> assign(:editing_schedule, nil)
          |> assign(:form, nil)}
+
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
     end
   end
 
-  def handle_event("update_zone_runtime", %{"schedule_id" => sid, "zone_id" => zid, "runtime" => rt}, socket) do
+  def handle_event(
+        "update_zone_runtime",
+        %{"schedule_id" => sid, "zone_id" => zid, "runtime" => rt},
+        socket
+      ) do
     Schedules.upsert_schedule_zone(%{
       schedule_id: String.to_integer(sid),
       zone_id: String.to_integer(zid),
       runtime_seconds: String.to_integer(rt) * 60,
       enabled: true
     })
+
     {:noreply, assign(socket, :schedules, Schedules.list_schedules())}
   end
 
-  def handle_event("toggle_zone_in_schedule", %{"schedule_id" => sid, "zone_id" => zid, "enabled" => en}, socket) do
+  def handle_event(
+        "toggle_zone_in_schedule",
+        %{"schedule_id" => sid, "zone_id" => zid, "enabled" => en},
+        socket
+      ) do
     schedule = Schedules.get_schedule!(sid)
     existing = Enum.find(schedule.schedule_zones, &(&1.zone_id == String.to_integer(zid)))
 
@@ -140,14 +156,19 @@ defmodule VerdantWeb.SchedulesLive do
           <div class="flex items-center gap-3">
             <div class={[
               "size-10 rounded-xl flex items-center justify-center font-bold text-lg",
-              if(@schedule.enabled, do: "bg-primary text-primary-content", else: "bg-base-200 text-base-content/30")
+              if(@schedule.enabled,
+                do: "bg-primary text-primary-content",
+                else: "bg-base-200 text-base-content/30"
+              )
             ]}>
               {String.slice(@schedule.name, 0, 1)}
             </div>
             <div>
               <h2 class="font-bold">{@schedule.name}</h2>
               <p class="text-xs text-base-content/50">
-                {if @schedule.label && @schedule.label != "", do: @schedule.label, else: "No description"}
+                {if @schedule.label && @schedule.label != "",
+                  do: @schedule.label,
+                  else: "No description"}
               </p>
             </div>
           </div>
@@ -239,14 +260,24 @@ defmodule VerdantWeb.SchedulesLive do
                 </div>
                 <div>
                   <label class="label label-text text-xs">Start Time</label>
-                  <.input type="time" field={@form[:start_time]} class="input input-bordered input-sm w-full" />
+                  <.input
+                    type="time"
+                    field={@form[:start_time]}
+                    class="input input-bordered input-sm w-full"
+                  />
                 </div>
                 <div>
                   <label class="label label-text text-xs">Days</label>
                   <div class="flex gap-1.5 flex-wrap">
                     <%= for {name, idx} <- Enum.with_index(@day_names) do %>
                       <label class="cursor-pointer">
-                        <input type="checkbox" class="hidden peer" name="schedule[days_of_week][]" value={idx} checked={day_selected?(@schedule, idx)} />
+                        <input
+                          type="checkbox"
+                          class="hidden peer"
+                          name="schedule[days_of_week][]"
+                          value={idx}
+                          checked={day_selected?(@schedule, idx)}
+                        />
                         <span class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold bg-base-300 text-base-content/40 peer-checked:bg-primary peer-checked:text-primary-content cursor-pointer select-none">
                           {String.slice(name, 0, 2)}
                         </span>
@@ -256,7 +287,9 @@ defmodule VerdantWeb.SchedulesLive do
                 </div>
                 <div class="flex gap-2 mt-2">
                   <button type="submit" class="btn btn-primary btn-sm flex-1">Save</button>
-                  <button type="button" phx-click="cancel_edit" class="btn btn-ghost btn-sm">Cancel</button>
+                  <button type="button" phx-click="cancel_edit" class="btn btn-ghost btn-sm">
+                    Cancel
+                  </button>
                 </div>
               </div>
             </.form>

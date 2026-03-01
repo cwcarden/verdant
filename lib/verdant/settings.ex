@@ -64,6 +64,7 @@ defmodule Verdant.Settings do
         %Setting{}
         |> Setting.changeset(%{key: key, value: to_string(value)})
         |> Repo.insert()
+
       setting ->
         setting
         |> Setting.changeset(%{value: to_string(value)})

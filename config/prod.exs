@@ -26,5 +26,8 @@ config :swoosh, local: false
 # Do not print debug messages in production
 config :logger, level: :info
 
+# GPIO: use real Circuits.GPIO hardware adapter on the Pi
+config :verdant, :gpio_adapter, Verdant.GPIO.HardwareAdapter
+
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.

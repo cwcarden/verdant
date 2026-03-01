@@ -20,8 +20,18 @@ defmodule Verdant.Watering.WateringSession do
 
   def changeset(session, attrs) do
     session
-    |> cast(attrs, [:zone_id, :schedule_id, :zone_name, :trigger, :started_at, :ended_at,
-                    :planned_duration_seconds, :actual_duration_seconds, :skipped, :skip_reason])
+    |> cast(attrs, [
+      :zone_id,
+      :schedule_id,
+      :zone_name,
+      :trigger,
+      :started_at,
+      :ended_at,
+      :planned_duration_seconds,
+      :actual_duration_seconds,
+      :skipped,
+      :skip_reason
+    ])
     |> validate_required([:zone_name, :started_at])
   end
 end

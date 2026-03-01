@@ -21,6 +21,7 @@ defmodule VerdantWeb.WeatherLive do
 
   def handle_info(:do_fetch, socket) do
     result = Weather.fetch_from_api()
+
     socket =
       case result do
         {:ok, _reading} ->
@@ -29,9 +30,11 @@ defmodule VerdantWeb.WeatherLive do
           |> assign(:latest, Weather.latest_reading())
           |> assign(:readings, Weather.recent_readings(48))
           |> assign(:skip_result, Weather.should_skip_watering?())
+
         {:error, msg} ->
           put_flash(socket, :error, "Failed to fetch weather: #{msg}")
       end
+
     {:noreply, assign(socket, :fetching, false)}
   end
 
@@ -49,7 +52,10 @@ defmodule VerdantWeb.WeatherLive do
             disabled={@fetching}
             class="btn btn-primary btn-sm"
           >
-            <.icon name={if @fetching, do: "hero-arrow-path", else: "hero-arrow-path"} class={["size-4", if(@fetching, do: "animate-spin")]} />
+            <.icon
+              name={if @fetching, do: "hero-arrow-path", else: "hero-arrow-path"}
+              class={["size-4", if(@fetching, do: "animate-spin")]}
+            />
             {if @fetching, do: "Fetching...", else: "Fetch Now"}
           </button>
         </div>
@@ -57,7 +63,10 @@ defmodule VerdantWeb.WeatherLive do
         <%!-- Watering skip status --%>
         <% {will_skip, reason} = @skip_result %>
         <div class={["alert shadow-sm", if(will_skip, do: "alert-warning", else: "alert-success")]}>
-          <.icon name={if will_skip, do: "hero-x-circle", else: "hero-check-circle"} class="size-5 shrink-0" />
+          <.icon
+            name={if will_skip, do: "hero-x-circle", else: "hero-check-circle"}
+            class="size-5 shrink-0"
+          />
           <div>
             <p class="font-semibold">
               {if will_skip, do: "Watering would be skipped", else: "Conditions OK to water"}
@@ -83,14 +92,57 @@ defmodule VerdantWeb.WeatherLive do
               </div>
 
               <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
-                <.wx_stat label="Temperature" value={"#{round(@latest.temperature_f || 0)}°F"} sub={if @latest.feels_like_f, do: "Feels #{round(@latest.feels_like_f)}°F"} icon="hero-sun" color="text-warning" />
-                <.wx_stat label="Humidity" value={"#{round(@latest.humidity_pct || 0)}%"} icon="hero-beaker" color="text-info" />
-                <.wx_stat label="Wind" value={"#{round(@latest.wind_speed_mph || 0)} mph"} sub={if @latest.wind_gust_mph, do: "Gust #{round(@latest.wind_gust_mph)} mph"} icon="hero-arrow-up-circle" color="text-secondary" />
-                <.wx_stat label="Rain Today" value={"#{@latest.rain_daily_in || 0}\""} sub={if @latest.rain_event_in, do: "Event #{@latest.rain_event_in}\""} icon="hero-cloud" color="text-primary" />
-                <.wx_stat label="Rain Weekly" value={"#{@latest.rain_weekly_in || 0}\""} icon="hero-calendar" color="text-primary" />
-                <.wx_stat label="Barometer" value={"#{@latest.pressure_inhg || 0}\""} icon="hero-chart-bar" color="text-neutral" />
-                <.wx_stat label="UV Index" value={to_string(@latest.uv_index || 0)} icon="hero-sun" color="text-warning" />
-                <.wx_stat label="Dew Point" value={if @latest.dew_point_f, do: "#{round(@latest.dew_point_f)}°F", else: "—"} icon="hero-eye-dropper" color="text-success" />
+                <.wx_stat
+                  label="Temperature"
+                  value={"#{round(@latest.temperature_f || 0)}°F"}
+                  sub={if @latest.feels_like_f, do: "Feels #{round(@latest.feels_like_f)}°F"}
+                  icon="hero-sun"
+                  color="text-warning"
+                />
+                <.wx_stat
+                  label="Humidity"
+                  value={"#{round(@latest.humidity_pct || 0)}%"}
+                  icon="hero-beaker"
+                  color="text-info"
+                />
+                <.wx_stat
+                  label="Wind"
+                  value={"#{round(@latest.wind_speed_mph || 0)} mph"}
+                  sub={if @latest.wind_gust_mph, do: "Gust #{round(@latest.wind_gust_mph)} mph"}
+                  icon="hero-arrow-up-circle"
+                  color="text-secondary"
+                />
+                <.wx_stat
+                  label="Rain Today"
+                  value={"#{@latest.rain_daily_in || 0}\""}
+                  sub={if @latest.rain_event_in, do: "Event #{@latest.rain_event_in}\""}
+                  icon="hero-cloud"
+                  color="text-primary"
+                />
+                <.wx_stat
+                  label="Rain Weekly"
+                  value={"#{@latest.rain_weekly_in || 0}\""}
+                  icon="hero-calendar"
+                  color="text-primary"
+                />
+                <.wx_stat
+                  label="Barometer"
+                  value={"#{@latest.pressure_inhg || 0}\""}
+                  icon="hero-chart-bar"
+                  color="text-neutral"
+                />
+                <.wx_stat
+                  label="UV Index"
+                  value={to_string(@latest.uv_index || 0)}
+                  icon="hero-sun"
+                  color="text-warning"
+                />
+                <.wx_stat
+                  label="Dew Point"
+                  value={if @latest.dew_point_f, do: "#{round(@latest.dew_point_f)}°F", else: "—"}
+                  icon="hero-eye-dropper"
+                  color="text-success"
+                />
               </div>
             </div>
           </div>
@@ -99,7 +151,9 @@ defmodule VerdantWeb.WeatherLive do
             <div class="card-body py-12 items-center text-center">
               <.icon name="hero-cloud" class="size-12 text-base-content/20" />
               <p class="mt-3 font-medium text-base-content/50">No weather data available</p>
-              <p class="text-sm text-base-content/30">Configure your Ambient Weather API in Settings, then click Fetch Now</p>
+              <p class="text-sm text-base-content/30">
+                Configure your Ambient Weather API in Settings, then click Fetch Now
+              </p>
               <a href={~p"/settings"} class="btn btn-primary btn-sm mt-4">Go to Settings</a>
             </div>
           </div>
@@ -125,7 +179,9 @@ defmodule VerdantWeb.WeatherLive do
                   <tbody>
                     <%= for r <- @readings do %>
                       <tr class="hover">
-                        <td class="text-xs whitespace-nowrap">{Calendar.strftime(r.recorded_at, "%m/%d %I:%M %p")}</td>
+                        <td class="text-xs whitespace-nowrap">
+                          {Calendar.strftime(r.recorded_at, "%m/%d %I:%M %p")}
+                        </td>
                         <td>{if r.temperature_f, do: round(r.temperature_f), else: "—"}</td>
                         <td>{if r.humidity_pct, do: "#{round(r.humidity_pct)}%", else: "—"}</td>
                         <td>{if r.wind_speed_mph, do: round(r.wind_speed_mph), else: "—"}</td>

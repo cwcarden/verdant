@@ -28,11 +28,27 @@ defmodule Verdant.Weather.WeatherReading do
 
   def changeset(reading, attrs) do
     reading
-    |> cast(attrs, [:recorded_at, :station_name, :temperature_f, :feels_like_f,
-                    :humidity_pct, :wind_speed_mph, :wind_gust_mph, :wind_direction_deg,
-                    :rain_hourly_in, :rain_daily_in, :rain_weekly_in, :rain_monthly_in,
-                    :rain_event_in, :rain_total_in, :pressure_inhg, :pressure_trend,
-                    :uv_index, :solar_radiation_wm2, :dew_point_f])
+    |> cast(attrs, [
+      :recorded_at,
+      :station_name,
+      :temperature_f,
+      :feels_like_f,
+      :humidity_pct,
+      :wind_speed_mph,
+      :wind_gust_mph,
+      :wind_direction_deg,
+      :rain_hourly_in,
+      :rain_daily_in,
+      :rain_weekly_in,
+      :rain_monthly_in,
+      :rain_event_in,
+      :rain_total_in,
+      :pressure_inhg,
+      :pressure_trend,
+      :uv_index,
+      :solar_radiation_wm2,
+      :dew_point_f
+    ])
     |> validate_required([:recorded_at])
   end
 end

@@ -1,12 +1,10 @@
 defmodule VerdantWeb.ManualLive do
   use VerdantWeb, :live_view
-  alias Verdant.{Zones, Watering}
-
-  @refresh_interval 3_000
+  alias Verdant.{Zones, Watering, Irrigation}
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      Process.send_after(self(), :refresh, @refresh_interval)
+      Irrigation.subscribe()
     end
 
     zones = Zones.list_zones()
@@ -22,10 +20,20 @@ defmodule VerdantWeb.ManualLive do
      |> assign(:confirming_stop, false)}
   end
 
-  def handle_info(:refresh, socket) do
-    Process.send_after(self(), :refresh, @refresh_interval)
-    active_session = Watering.get_active_session()
-    {:noreply, assign(socket, :active_session, active_session)}
+  def handle_info({:watering_started, _info}, socket) do
+    {:noreply, assign(socket, :active_session, Watering.get_active_session())}
+  end
+
+  def handle_info({:zone_complete, _info}, socket) do
+    {:noreply, assign(socket, :active_session, Watering.get_active_session())}
+  end
+
+  def handle_info({:watering_stopped, _info}, socket) do
+    {:noreply, assign(socket, :active_session, nil)}
+  end
+
+  def handle_info({:schedule_complete, _info}, socket) do
+    {:noreply, assign(socket, :active_session, nil)}
   end
 
   def handle_event("set_duration", %{"duration" => duration}, socket) do
@@ -36,43 +44,21 @@ defmodule VerdantWeb.ManualLive do
     zone = Zones.get_zone!(zone_id)
     planned_seconds = socket.assigns.selected_duration * 60
 
-    attrs = %{
-      zone_id: zone.id,
-      zone_name: zone.name,
-      trigger: "manual",
-      planned_duration_seconds: planned_seconds
-    }
+    case Irrigation.start_zone(zone, planned_seconds) do
+      :ok ->
+        {:noreply, put_flash(socket, :info, "Started watering #{zone.name}")}
 
-    case Watering.start_session(attrs) do
-      {:ok, _session} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Started watering #{zone.name}")
-         |> assign(:active_session, Watering.get_active_session())}
+      {:error, :busy} ->
+        {:noreply, put_flash(socket, :error, "Another zone is already running")}
 
-      {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to start watering")}
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Failed to start: #{inspect(reason)}")}
     end
   end
 
   def handle_event("stop_watering", _params, socket) do
-    case socket.assigns.active_session do
-      nil ->
-        {:noreply, socket}
-
-      session ->
-        case Watering.end_session(session) do
-          {:ok, _} ->
-            {:noreply,
-             socket
-             |> put_flash(:info, "Watering stopped")
-             |> assign(:active_session, nil)
-             |> assign(:confirming_stop, false)}
-
-          {:error, _} ->
-            {:noreply, put_flash(socket, :error, "Failed to stop watering")}
-        end
-    end
+    Irrigation.stop_all()
+    {:noreply, socket |> put_flash(:info, "Watering stopped") |> assign(:confirming_stop, false)}
   end
 
   def render(assigns) do
@@ -102,8 +88,7 @@ defmodule VerdantWeb.ManualLive do
               </p>
             </div>
             <button phx-click="stop_watering" class="btn btn-sm btn-error">
-              <.icon name="hero-stop-circle" class="size-4" />
-              Stop
+              <.icon name="hero-stop-circle" class="size-4" /> Stop
             </button>
           </div>
         <% end %>
@@ -150,12 +135,19 @@ defmodule VerdantWeb.ManualLive do
 
   defp zone_card(assigns) do
     assigns =
-      assign(assigns, :is_active,
-        assigns.active_session && assigns.active_session.zone_id == assigns.zone.id)
+      assign(
+        assigns,
+        :is_active,
+        assigns.active_session && assigns.active_session.zone_id == assigns.zone.id
+      )
+
     ~H"""
     <div class={[
       "card shadow-sm transition-all",
-      if(@is_active, do: "bg-success/10 border-2 border-success", else: "bg-base-100 border border-base-200")
+      if(@is_active,
+        do: "bg-success/10 border-2 border-success",
+        else: "bg-base-100 border border-base-200"
+      )
     ]}>
       <div class="card-body p-4">
         <div class="flex items-start justify-between gap-2">
@@ -168,7 +160,8 @@ defmodule VerdantWeb.ManualLive do
                   @zone.enabled -> "bg-base-content/20"
                   true -> "bg-error/40"
                 end
-              ]}></span>
+              ]}>
+              </span>
               <h3 class="font-semibold text-base truncate">{@zone.name}</h3>
             </div>
             <%= if @zone.description && @zone.description != "" do %>
@@ -192,7 +185,12 @@ defmodule VerdantWeb.ManualLive do
               <%= if @active_session.planned_duration_seconds do %>
                 <progress
                   class="progress progress-success w-full"
-                  value={min(DateTime.diff(DateTime.utc_now(), @active_session.started_at), @active_session.planned_duration_seconds)}
+                  value={
+                    min(
+                      DateTime.diff(DateTime.utc_now(), @active_session.started_at),
+                      @active_session.planned_duration_seconds
+                    )
+                  }
                   max={@active_session.planned_duration_seconds}
                 >
                 </progress>
@@ -201,8 +199,7 @@ defmodule VerdantWeb.ManualLive do
                 phx-click="stop_watering"
                 class="btn btn-error btn-sm w-full"
               >
-                <.icon name="hero-stop-circle" class="size-4" />
-                Stop
+                <.icon name="hero-stop-circle" class="size-4" /> Stop
               </button>
             </div>
           <% else %>
@@ -215,8 +212,7 @@ defmodule VerdantWeb.ManualLive do
                 if(@zone.enabled, do: "btn-primary", else: "btn-ghost opacity-50")
               ]}
             >
-              <.icon name="hero-play" class="size-4" />
-              Run {@selected_duration}m
+              <.icon name="hero-play" class="size-4" /> Run {@selected_duration}m
             </button>
           <% end %>
         </div>

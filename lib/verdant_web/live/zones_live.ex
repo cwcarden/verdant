@@ -18,6 +18,7 @@ defmodule VerdantWeb.ZonesLive do
   def handle_event("edit_zone", %{"id" => id}, socket) do
     zone = Zones.get_zone!(id)
     changeset = Zones.change_zone(zone)
+
     {:noreply,
      socket
      |> assign(:editing_zone, zone)
@@ -28,6 +29,7 @@ defmodule VerdantWeb.ZonesLive do
   def handle_event("new_zone", _params, socket) do
     next_pos = length(socket.assigns.zones) + 1
     changeset = Zones.change_zone(%Zone{}, %{position: next_pos})
+
     {:noreply,
      socket
      |> assign(:editing_zone, nil)
@@ -60,6 +62,7 @@ defmodule VerdantWeb.ZonesLive do
          |> assign(:editing_zone, nil)
          |> assign(:form, nil)
          |> assign(:show_new_form, false)}
+
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
     end
@@ -67,9 +70,11 @@ defmodule VerdantWeb.ZonesLive do
 
   def handle_event("toggle_zone", %{"id" => id}, socket) do
     zone = Zones.get_zone!(id)
+
     case Zones.update_zone(zone, %{enabled: !zone.enabled}) do
       {:ok, _} ->
         {:noreply, assign(socket, :zones, Zones.list_zones())}
+
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to update zone")}
     end
@@ -82,11 +87,12 @@ defmodule VerdantWeb.ZonesLive do
         <div class="flex items-center justify-between">
           <div>
             <h1 class="text-2xl font-bold">Zones</h1>
-            <p class="text-sm text-base-content/50 mt-0.5">Configure irrigation zones and GPIO pins</p>
+            <p class="text-sm text-base-content/50 mt-0.5">
+              Configure irrigation zones and GPIO pins
+            </p>
           </div>
           <button phx-click="new_zone" class="btn btn-primary btn-sm">
-            <.icon name="hero-plus" class="size-4" />
-            Add Zone
+            <.icon name="hero-plus" class="size-4" /> Add Zone
           </button>
         </div>
 
@@ -115,7 +121,9 @@ defmodule VerdantWeb.ZonesLive do
                   <tr>
                     <td colspan="7" class="text-center py-8 text-base-content/40">
                       No zones configured yet.
-                      <a href="#" phx-click="new_zone" class="link link-primary">Add your first zone</a>
+                      <a href="#" phx-click="new_zone" class="link link-primary">
+                        Add your first zone
+                      </a>
                     </td>
                   </tr>
                 <% end %>
@@ -154,8 +162,7 @@ defmodule VerdantWeb.ZonesLive do
                         phx-value-id={zone.id}
                         class="btn btn-ghost btn-xs"
                       >
-                        <.icon name="hero-pencil-square" class="size-4" />
-                        Edit
+                        <.icon name="hero-pencil-square" class="size-4" /> Edit
                       </button>
                     </td>
                   </tr>
@@ -202,28 +209,73 @@ defmodule VerdantWeb.ZonesLive do
         <.form for={@form} phx-submit="save_zone" class="mt-3">
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div class="form-control">
-              <label class="label"><span class="label-text text-xs font-semibold">Zone Name *</span></label>
-              <.input field={@form[:name]} class="input input-bordered input-sm" placeholder="e.g. Back Yard Upper" />
+              <label class="label">
+                <span class="label-text text-xs font-semibold">Zone Name *</span>
+              </label>
+              <.input
+                field={@form[:name]}
+                class="input input-bordered input-sm"
+                placeholder="e.g. Back Yard Upper"
+              />
             </div>
             <div class="form-control">
-              <label class="label"><span class="label-text text-xs font-semibold">Description</span></label>
-              <.input field={@form[:description]} class="input input-bordered input-sm" placeholder="Optional notes" />
+              <label class="label">
+                <span class="label-text text-xs font-semibold">Description</span>
+              </label>
+              <.input
+                field={@form[:description]}
+                class="input input-bordered input-sm"
+                placeholder="Optional notes"
+              />
             </div>
             <div class="form-control">
-              <label class="label"><span class="label-text text-xs font-semibold">GPIO Pin (BCM) *</span></label>
-              <.input type="number" field={@form[:gpio_pin]} class="input input-bordered input-sm" min="2" max="27" />
+              <label class="label">
+                <span class="label-text text-xs font-semibold">GPIO Pin (BCM) *</span>
+              </label>
+              <.input
+                type="number"
+                field={@form[:gpio_pin]}
+                class="input input-bordered input-sm"
+                min="2"
+                max="27"
+              />
             </div>
             <div class="form-control">
-              <label class="label"><span class="label-text text-xs font-semibold">Position / Order *</span></label>
-              <.input type="number" field={@form[:position]} class="input input-bordered input-sm" min="1" max="8" />
+              <label class="label">
+                <span class="label-text text-xs font-semibold">Position / Order *</span>
+              </label>
+              <.input
+                type="number"
+                field={@form[:position]}
+                class="input input-bordered input-sm"
+                min="1"
+                max="8"
+              />
             </div>
             <div class="form-control">
-              <label class="label"><span class="label-text text-xs font-semibold">Water Heads</span></label>
-              <.input type="number" field={@form[:water_heads]} class="input input-bordered input-sm" min="0" placeholder="0" />
+              <label class="label">
+                <span class="label-text text-xs font-semibold">Water Heads</span>
+              </label>
+              <.input
+                type="number"
+                field={@form[:water_heads]}
+                class="input input-bordered input-sm"
+                min="0"
+                placeholder="0"
+              />
             </div>
             <div class="form-control">
-              <label class="label"><span class="label-text text-xs font-semibold">Flow Rate (GPM)</span></label>
-              <.input type="number" field={@form[:flow_rate_gpm]} class="input input-bordered input-sm" min="0" step="0.1" placeholder="0.0" />
+              <label class="label">
+                <span class="label-text text-xs font-semibold">Flow Rate (GPM)</span>
+              </label>
+              <.input
+                type="number"
+                field={@form[:flow_rate_gpm]}
+                class="input input-bordered input-sm"
+                min="0"
+                step="0.1"
+                placeholder="0.0"
+              />
             </div>
           </div>
           <div class="flex gap-2 mt-4">

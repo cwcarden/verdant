@@ -13,6 +13,7 @@ defmodule Verdant.Watering do
 
   def start_session(attrs) do
     attrs = Map.put(attrs, :started_at, DateTime.utc_now() |> DateTime.truncate(:second))
+
     %WateringSession{}
     |> WateringSession.changeset(attrs)
     |> Repo.insert()
@@ -21,6 +22,7 @@ defmodule Verdant.Watering do
   def end_session(%WateringSession{} = session) do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
     actual = DateTime.diff(now, session.started_at)
+
     session
     |> WateringSession.changeset(%{ended_at: now, actual_duration_seconds: actual})
     |> Repo.update()

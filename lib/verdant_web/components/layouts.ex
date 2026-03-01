@@ -27,8 +27,7 @@ defmodule VerdantWeb.Layouts do
           </div>
           <div class="flex-1">
             <span class="text-xl font-bold text-primary flex items-center gap-2">
-              <.icon name="hero-sparkles" class="size-5" />
-              Verdant
+              <.icon name="hero-sparkles" class="size-5" /> Verdant
             </span>
           </div>
           <div class="flex-none">
@@ -65,25 +64,60 @@ defmodule VerdantWeb.Layouts do
             <p class="text-xs font-semibold uppercase tracking-wider text-neutral-content/40 px-3 mb-2">
               Control
             </p>
-            <.nav_item icon="hero-home" label="Dashboard" href={~p"/"} active={@active_tab == :dashboard} />
-            <.nav_item icon="hero-play-circle" label="Manual Control" href={~p"/manual"} active={@active_tab == :manual} />
-            <.nav_item icon="hero-clock" label="Schedules" href={~p"/schedules"} active={@active_tab == :schedules} />
+            <.nav_item
+              icon="hero-home"
+              label="Dashboard"
+              href={~p"/"}
+              active={@active_tab == :dashboard}
+            />
+            <.nav_item
+              icon="hero-play-circle"
+              label="Manual Control"
+              href={~p"/manual"}
+              active={@active_tab == :manual}
+            />
+            <.nav_item
+              icon="hero-clock"
+              label="Schedules"
+              href={~p"/schedules"}
+              active={@active_tab == :schedules}
+            />
 
             <div class="divider my-2 opacity-20"></div>
             <p class="text-xs font-semibold uppercase tracking-wider text-neutral-content/40 px-3 mb-2">
               Configure
             </p>
-            <.nav_item icon="hero-adjustments-horizontal" label="Zones" href={~p"/zones"} active={@active_tab == :zones} />
-            <.nav_item icon="hero-cloud" label="Weather" href={~p"/weather"} active={@active_tab == :weather} />
+            <.nav_item
+              icon="hero-adjustments-horizontal"
+              label="Zones"
+              href={~p"/zones"}
+              active={@active_tab == :zones}
+            />
+            <.nav_item
+              icon="hero-cloud"
+              label="Weather"
+              href={~p"/weather"}
+              active={@active_tab == :weather}
+            />
 
             <div class="divider my-2 opacity-20"></div>
             <p class="text-xs font-semibold uppercase tracking-wider text-neutral-content/40 px-3 mb-2">
               History
             </p>
-            <.nav_item icon="hero-chart-bar" label="History" href={~p"/history"} active={@active_tab == :history} />
+            <.nav_item
+              icon="hero-chart-bar"
+              label="History"
+              href={~p"/history"}
+              active={@active_tab == :history}
+            />
 
             <div class="divider my-2 opacity-20"></div>
-            <.nav_item icon="hero-cog-6-tooth" label="Settings" href={~p"/settings"} active={@active_tab == :settings} />
+            <.nav_item
+              icon="hero-cog-6-tooth"
+              label="Settings"
+              href={~p"/settings"}
+              active={@active_tab == :settings}
+            />
           </nav>
 
           <%!-- Footer --%>

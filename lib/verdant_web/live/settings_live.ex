@@ -9,10 +9,30 @@ defmodule VerdantWeb.SettingsLive do
       icon: "hero-cloud",
       description: "WS-2000 weather station connection",
       fields: [
-        %{key: "ambient_api_key", label: "API Key", type: "password", placeholder: "Your Ambient Weather API key"},
-        %{key: "ambient_app_key", label: "Application Key", type: "password", placeholder: "Your application key"},
-        %{key: "ambient_mac", label: "Station MAC Address", type: "text", placeholder: "AA:BB:CC:DD:EE:FF"},
-        %{key: "weather_fetch_interval_minutes", label: "Fetch Interval (minutes)", type: "number", placeholder: "15"}
+        %{
+          key: "ambient_api_key",
+          label: "API Key",
+          type: "password",
+          placeholder: "Your Ambient Weather API key"
+        },
+        %{
+          key: "ambient_app_key",
+          label: "Application Key",
+          type: "password",
+          placeholder: "Your application key"
+        },
+        %{
+          key: "ambient_mac",
+          label: "Station MAC Address",
+          type: "text",
+          placeholder: "AA:BB:CC:DD:EE:FF"
+        },
+        %{
+          key: "weather_fetch_interval_minutes",
+          label: "Fetch Interval (minutes)",
+          type: "number",
+          placeholder: "15"
+        }
       ]
     },
     %{
@@ -21,11 +41,36 @@ defmodule VerdantWeb.SettingsLive do
       icon: "hero-shield-check",
       description: "Automatically skip watering when these weather thresholds are met",
       fields: [
-        %{key: "skip_rain_hours", label: "Skip if rain within (hours)", type: "number", placeholder: "24"},
-        %{key: "skip_rain_inches", label: "Skip if daily rain exceeds (inches)", type: "number", placeholder: "0.25"},
-        %{key: "skip_wind_mph", label: "Skip if wind exceeds (mph)", type: "number", placeholder: "25"},
-        %{key: "skip_temp_min", label: "Skip if temperature below (°F)", type: "number", placeholder: "32"},
-        %{key: "skip_temp_max", label: "Skip if temperature above (°F)", type: "number", placeholder: "110"}
+        %{
+          key: "skip_rain_hours",
+          label: "Skip if rain within (hours)",
+          type: "number",
+          placeholder: "24"
+        },
+        %{
+          key: "skip_rain_inches",
+          label: "Skip if daily rain exceeds (inches)",
+          type: "number",
+          placeholder: "0.25"
+        },
+        %{
+          key: "skip_wind_mph",
+          label: "Skip if wind exceeds (mph)",
+          type: "number",
+          placeholder: "25"
+        },
+        %{
+          key: "skip_temp_min",
+          label: "Skip if temperature below (°F)",
+          type: "number",
+          placeholder: "32"
+        },
+        %{
+          key: "skip_temp_max",
+          label: "Skip if temperature above (°F)",
+          type: "number",
+          placeholder: "110"
+        }
       ]
     },
     %{
@@ -34,12 +79,27 @@ defmodule VerdantWeb.SettingsLive do
       icon: "hero-envelope",
       description: "SMTP settings for watering event notifications",
       fields: [
-        %{key: "notifications_enabled", label: "Enable Notifications", type: "checkbox", placeholder: ""},
+        %{
+          key: "notifications_enabled",
+          label: "Enable Notifications",
+          type: "checkbox",
+          placeholder: ""
+        },
         %{key: "smtp_host", label: "SMTP Host", type: "text", placeholder: "smtp.gmail.com"},
         %{key: "smtp_port", label: "SMTP Port", type: "number", placeholder: "587"},
         %{key: "smtp_user", label: "SMTP Username", type: "text", placeholder: "your@email.com"},
-        %{key: "smtp_password", label: "SMTP Password", type: "password", placeholder: "App password"},
-        %{key: "email_from", label: "From Address", type: "text", placeholder: "verdant@yourdomain.com"},
+        %{
+          key: "smtp_password",
+          label: "SMTP Password",
+          type: "password",
+          placeholder: "App password"
+        },
+        %{
+          key: "email_from",
+          label: "From Address",
+          type: "text",
+          placeholder: "verdant@yourdomain.com"
+        },
         %{key: "email_to", label: "To Address", type: "text", placeholder: "you@yourdomain.com"}
       ]
     },
@@ -49,7 +109,12 @@ defmodule VerdantWeb.SettingsLive do
       icon: "hero-cpu-chip",
       description: "Raspberry Pi GPIO configuration",
       fields: [
-        %{key: "master_valve_pin", label: "Master Valve GPIO Pin (BCM)", type: "number", placeholder: "2"}
+        %{
+          key: "master_valve_pin",
+          label: "Master Valve GPIO Pin (BCM)",
+          type: "number",
+          placeholder: "2"
+        }
       ]
     }
   ]
@@ -129,7 +194,9 @@ defmodule VerdantWeb.SettingsLive do
                               checked={Map.get(@settings, field.key) == "true"}
                             />
                             <span class="text-sm text-base-content/60">
-                              {if Map.get(@settings, field.key) == "true", do: "Enabled", else: "Disabled"}
+                              {if Map.get(@settings, field.key) == "true",
+                                do: "Enabled",
+                                else: "Disabled"}
                             </span>
                           </label>
                         <% else %>
@@ -150,8 +217,7 @@ defmodule VerdantWeb.SettingsLive do
 
             <div class="flex justify-end gap-3">
               <button type="submit" class="btn btn-primary">
-                <.icon name="hero-check" class="size-4" />
-                Save All Settings
+                <.icon name="hero-check" class="size-4" /> Save All Settings
               </button>
             </div>
           </div>

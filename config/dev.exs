@@ -87,3 +87,6 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# GPIO: use the stub adapter in dev so no real pins are touched on your Mac
+config :verdant, :gpio_adapter, Verdant.GPIO.StubAdapter

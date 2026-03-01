@@ -18,7 +18,14 @@ defmodule Verdant.Schedules.Schedule do
 
   def changeset(schedule, attrs) do
     schedule
-    |> cast(attrs, [:name, :label, :enabled, :days_of_week, :start_time, :master_valve_warmup_seconds])
+    |> cast(attrs, [
+      :name,
+      :label,
+      :enabled,
+      :days_of_week,
+      :start_time,
+      :master_valve_warmup_seconds
+    ])
     |> validate_required([:name])
     |> unique_constraint(:name)
     |> validate_format(:start_time, ~r/^\d{2}:\d{2}$/, message: "must be HH:MM format")

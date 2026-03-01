@@ -1,12 +1,10 @@
 defmodule VerdantWeb.DashboardLive do
   use VerdantWeb, :live_view
-  alias Verdant.{Zones, Weather, Watering}
-
-  @refresh_interval 5_000
+  alias Verdant.{Zones, Weather, Watering, Irrigation}
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      Process.send_after(self(), :refresh, @refresh_interval)
+      Irrigation.subscribe()
     end
 
     {:ok,
@@ -16,10 +14,10 @@ defmodule VerdantWeb.DashboardLive do
      |> load_data()}
   end
 
-  def handle_info(:refresh, socket) do
-    Process.send_after(self(), :refresh, @refresh_interval)
-    {:noreply, load_data(socket)}
-  end
+  def handle_info({:watering_started, _info}, socket), do: {:noreply, load_data(socket)}
+  def handle_info({:zone_complete, _info}, socket), do: {:noreply, load_data(socket)}
+  def handle_info({:watering_stopped, _info}, socket), do: {:noreply, load_data(socket)}
+  def handle_info({:schedule_complete, _info}, socket), do: {:noreply, load_data(socket)}
 
   defp load_data(socket) do
     zones = Zones.list_zones()
@@ -82,7 +80,11 @@ defmodule VerdantWeb.DashboardLive do
           />
           <.stat_card
             label="Temperature"
-            value={if @weather && @weather.temperature_f, do: "#{round(@weather.temperature_f)}°F", else: "—"}
+            value={
+              if @weather && @weather.temperature_f,
+                do: "#{round(@weather.temperature_f)}°F",
+                else: "—"
+            }
             icon="hero-sun"
             color="text-warning"
           />
@@ -185,13 +187,20 @@ defmodule VerdantWeb.DashboardLive do
                 <div class="flex justify-between text-xs text-base-content/50 mb-1">
                   <span>Progress</span>
                   <span>
-                    {div(DateTime.diff(DateTime.utc_now(), @session.started_at), 60)}m /
-                    {div(@session.planned_duration_seconds, 60)}m
+                    {div(DateTime.diff(DateTime.utc_now(), @session.started_at), 60)}m / {div(
+                      @session.planned_duration_seconds,
+                      60
+                    )}m
                   </span>
                 </div>
                 <progress
                   class="progress progress-success w-full"
-                  value={min(DateTime.diff(DateTime.utc_now(), @session.started_at), @session.planned_duration_seconds)}
+                  value={
+                    min(
+                      DateTime.diff(DateTime.utc_now(), @session.started_at),
+                      @session.planned_duration_seconds
+                    )
+                  }
                   max={@session.planned_duration_seconds}
                 >
                 </progress>
@@ -229,10 +238,26 @@ defmodule VerdantWeb.DashboardLive do
               </span>
             </div>
             <div class="grid grid-cols-2 gap-2 text-sm">
-              <.weather_row icon="hero-beaker" label="Humidity" value={"#{round(@weather.humidity_pct || 0)}%"} />
-              <.weather_row icon="hero-arrow-up-circle" label="Wind" value={"#{round(@weather.wind_speed_mph || 0)} mph"} />
-              <.weather_row icon="hero-cloud" label="Rain Today" value={"#{@weather.rain_daily_in || 0}\""} />
-              <.weather_row icon="hero-eye-dropper" label="Dew Pt" value={if @weather.dew_point_f, do: "#{round(@weather.dew_point_f)}°F", else: "—"} />
+              <.weather_row
+                icon="hero-beaker"
+                label="Humidity"
+                value={"#{round(@weather.humidity_pct || 0)}%"}
+              />
+              <.weather_row
+                icon="hero-arrow-up-circle"
+                label="Wind"
+                value={"#{round(@weather.wind_speed_mph || 0)} mph"}
+              />
+              <.weather_row
+                icon="hero-cloud"
+                label="Rain Today"
+                value={"#{@weather.rain_daily_in || 0}\""}
+              />
+              <.weather_row
+                icon="hero-eye-dropper"
+                label="Dew Pt"
+                value={if @weather.dew_point_f, do: "#{round(@weather.dew_point_f)}°F", else: "—"}
+              />
             </div>
             <p class="text-xs text-base-content/40">
               Updated {Calendar.strftime(@weather.recorded_at, "%I:%M %p")}
@@ -241,7 +266,7 @@ defmodule VerdantWeb.DashboardLive do
         <% else %>
           <div class="flex flex-col items-center justify-center py-6 text-base-content/30">
             <.icon name="hero-cloud" class="size-10" />
-            <p class="mt-2 text-xs text-center">No weather data<br/>Configure in Settings</p>
+            <p class="mt-2 text-xs text-center">No weather data<br />Configure in Settings</p>
           </div>
         <% end %>
       </div>
@@ -267,8 +292,13 @@ defmodule VerdantWeb.DashboardLive do
   attr :active_session, :any, default: nil
 
   defp zone_status_chip(assigns) do
-    assigns = assign(assigns, :is_active,
-      assigns.active_session && assigns.active_session.zone_id == assigns.zone.id)
+    assigns =
+      assign(
+        assigns,
+        :is_active,
+        assigns.active_session && assigns.active_session.zone_id == assigns.zone.id
+      )
+
     ~H"""
     <div class={[
       "flex items-center gap-2 p-2 rounded-lg border text-sm",
@@ -285,7 +315,8 @@ defmodule VerdantWeb.DashboardLive do
           @zone.enabled -> "bg-base-content/20"
           true -> "bg-base-content/10"
         end
-      ]}></span>
+      ]}>
+      </span>
       <span class="truncate font-medium">{@zone.name}</span>
     </div>
     """

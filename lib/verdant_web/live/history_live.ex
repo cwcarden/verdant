@@ -74,9 +74,14 @@ defmodule VerdantWeb.HistoryLive do
                     <td class="text-sm">
                       <%= cond do %>
                         <% session.actual_duration_seconds -> %>
-                          {div(session.actual_duration_seconds, 60)}m {rem(session.actual_duration_seconds, 60)}s
+                          {div(session.actual_duration_seconds, 60)}m {rem(
+                            session.actual_duration_seconds,
+                            60
+                          )}s
                         <% session.planned_duration_seconds -> %>
-                          <span class="text-base-content/40">{div(session.planned_duration_seconds, 60)}m planned</span>
+                          <span class="text-base-content/40">
+                            {div(session.planned_duration_seconds, 60)}m planned
+                          </span>
                         <% true -> %>
                           —
                       <% end %>

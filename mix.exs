@@ -32,7 +32,10 @@ defmodule Verdant.MixProject do
   end
 
   # Specifies which paths to compile per environment.
+  # lib_gpio/ contains the hardware GPIO adapter and is only compiled in prod
+  # (where circuits_gpio is available). Dev uses the stub adapter in lib/.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(:prod), do: ["lib", "lib_gpio"]
   defp elixirc_paths(_), do: ["lib"]
 
   # Specifies your project dependencies.
@@ -65,7 +68,9 @@ defmodule Verdant.MixProject do
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      # GPIO — only needed on the Pi (prod). Dev uses the stub adapter.
+      {:circuits_gpio, "~> 2.0", only: :prod}
     ]
   end
 
