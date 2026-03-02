@@ -10,7 +10,7 @@ defmodule Verdant.Irrigation.Scheduler do
   use GenServer
   require Logger
 
-  alias Verdant.{Schedules, Weather, LocalTime}
+  alias Verdant.{Schedules, Weather, Watering, Settings, LocalTime}
   alias Verdant.Irrigation.Runner
 
   # check every 60 seconds
@@ -23,7 +23,10 @@ defmodule Verdant.Irrigation.Scheduler do
   @impl true
   def init(_opts) do
     schedule_check()
-    {:ok, %{ran_today: MapSet.new()}}
+    # Prune old records on startup so the DB doesn't grow unbounded
+    run_prune()
+    today = LocalTime.today()
+    {:ok, %{ran_today: MapSet.new(), current_date: today}}
   end
 
   @impl true
@@ -40,19 +43,21 @@ defmodule Verdant.Irrigation.Scheduler do
 
   defp maybe_reset_daily(state) do
     today = LocalTime.today()
-    # Reset ran_today at the start of a new day
-    if MapSet.size(state.ran_today) > 0 do
-      last_key = state.ran_today |> MapSet.to_list() |> List.first()
-      {_id, last_date} = last_key
 
-      if last_date != today do
-        %{state | ran_today: MapSet.new()}
-      else
-        state
-      end
+    if today != state.current_date do
+      Logger.info("[Scheduler] New day detected (#{today}), resetting schedule tracker and pruning old records")
+      run_prune()
+      %{state | ran_today: MapSet.new(), current_date: today}
     else
       state
     end
+  end
+
+  defp run_prune do
+    sessions_keep = Settings.get_integer("history_retain_sessions", 500)
+    readings_keep = Settings.get_integer("weather_retain_readings", 2880)
+    Watering.prune_old_sessions(sessions_keep)
+    Weather.prune_old_readings(readings_keep)
   end
 
   defp check_and_run(state) do
@@ -99,7 +104,15 @@ defmodule Verdant.Irrigation.Scheduler do
   end
 
   defp run_schedule(schedule, state, key) do
-    Logger.info("[Scheduler] Schedule '#{schedule.name}' is due, checking weather...")
+    Logger.info("[Scheduler] Schedule '#{schedule.name}' is due, fetching current weather...")
+
+    # Fetch fresh weather from the API so skip checks use real-time conditions.
+    # If credentials aren't set or the network is unavailable, fall back silently
+    # to the most recent reading already stored in the database.
+    case Weather.fetch_from_api() do
+      {:ok, _} -> Logger.info("[Scheduler] Weather data refreshed successfully")
+      {:error, reason} -> Logger.info("[Scheduler] Could not refresh weather (#{inspect(reason)}), using cached reading")
+    end
 
     {should_skip, reason} = Weather.should_skip_watering?()
 
@@ -117,6 +130,7 @@ defmodule Verdant.Irrigation.Scheduler do
 
       if zones_with_times == [] do
         Logger.warning("[Scheduler] Schedule '#{schedule.name}' has no enabled zones, skipping")
+        Runner.broadcast({:schedule_skipped, %{schedule_name: schedule.name, reason: "no enabled zones"}})
         %{state | ran_today: MapSet.put(state.ran_today, key)}
       else
         Logger.info(

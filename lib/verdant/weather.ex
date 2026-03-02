@@ -84,6 +84,35 @@ defmodule Verdant.Weather do
     store_reading(attrs)
   end
 
+  @doc """
+  Deletes weather readings beyond the most recent `keep` records.
+  At 15-min fetch intervals the default of 2880 keeps ~30 days of history.
+  """
+  def prune_old_readings(keep \\ 2880) do
+    keep_ids =
+      WeatherReading
+      |> order_by(desc: :recorded_at)
+      |> limit(^keep)
+      |> select([r], r.id)
+      |> Repo.all()
+
+    if length(keep_ids) >= keep do
+      {count, _} =
+        WeatherReading
+        |> where([r], r.id not in ^keep_ids)
+        |> Repo.delete_all()
+
+      if count > 0 do
+        require Logger
+        Logger.info("[Weather] Pruned #{count} old reading(s), retaining last #{keep}")
+      end
+
+      {count, nil}
+    else
+      {0, nil}
+    end
+  end
+
   def should_skip_watering? do
     reading = latest_reading()
 
@@ -95,7 +124,7 @@ defmodule Verdant.Weather do
         check_temperature(reading)
       ]
 
-      Enum.find(skip_rules, fn {skip, _reason} -> skip end)
+      Enum.find(skip_rules, {false, nil}, fn {skip, _reason} -> skip end)
     else
       {false, nil}
     end

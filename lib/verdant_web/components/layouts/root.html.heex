@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="auto-lock-minutes" content={assigns[:auto_lock_minutes] || "0"} />
     <.live_title default="Verdant">
       {assigns[:page_title]}
     </.live_title>
@@ -25,6 +26,21 @@
         if (saved) setTheme(saved);
         window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
         window.addEventListener("phx:set-theme", (e) => setTheme(e.detail.theme));
+      })();
+    </script>
+    <script>
+      (() => {
+        const mins = parseInt(document.querySelector("meta[name='auto-lock-minutes']")?.content || "0");
+        if (mins <= 0) return;
+        let timer;
+        const reset = () => {
+          clearTimeout(timer);
+          timer = setTimeout(() => { window.location.href = "/lock"; }, mins * 60 * 1000);
+        };
+        ["mousemove", "keydown", "touchstart", "click", "scroll"].forEach(e =>
+          window.addEventListener(e, reset, { passive: true })
+        );
+        reset();
       })();
     </script>
   </head>

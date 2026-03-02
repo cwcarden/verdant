@@ -16,6 +16,8 @@ defmodule Verdant.Application do
       {Phoenix.PubSub, name: Verdant.PubSub},
       Verdant.Irrigation.Runner,
       Verdant.Irrigation.Scheduler,
+      Verdant.Weather.Poller,
+      Verdant.Notifier,
       # Start to serve requests, typically the last entry
       VerdantWeb.Endpoint
     ]

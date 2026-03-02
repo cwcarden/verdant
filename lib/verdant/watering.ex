@@ -65,6 +65,36 @@ defmodule Verdant.Watering do
     :ok
   end
 
+  @doc """
+  Deletes watering sessions beyond the most recent `keep` records.
+  Runs at startup and daily so the database stays bounded in size.
+  Returns `{deleted_count, nil}`.
+  """
+  def prune_old_sessions(keep \\ 500) do
+    keep_ids =
+      WateringSession
+      |> order_by(desc: :started_at)
+      |> limit(^keep)
+      |> select([s], s.id)
+      |> Repo.all()
+
+    if length(keep_ids) >= keep do
+      {count, _} =
+        WateringSession
+        |> where([s], s.id not in ^keep_ids)
+        |> Repo.delete_all()
+
+      if count > 0 do
+        require Logger
+        Logger.info("[Watering] Pruned #{count} old session(s), retaining last #{keep}")
+      end
+
+      {count, nil}
+    else
+      {0, nil}
+    end
+  end
+
   def today_usage do
     today = DateTime.utc_now() |> DateTime.to_date()
     start_of_day = DateTime.new!(today, ~T[00:00:00], "Etc/UTC")

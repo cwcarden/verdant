@@ -20,8 +20,19 @@ defmodule Verdant.Settings do
     "email_from" => "",
     "email_to" => "",
     "notifications_enabled" => "false",
+    "notify_schedule_start" => "false",
+    "notify_schedule_complete" => "true",
+    "notify_schedule_skipped" => "true",
+    "notify_manual_start" => "false",
+    "notify_manual_stop" => "false",
     "master_valve_pin" => "2",
-    "timezone" => "America/Chicago"
+    "timezone" => "America/Chicago",
+    "history_display_limit" => "100",
+    "history_retain_sessions" => "500",
+    "weather_retain_readings" => "2880",
+    "pin_lock_enabled" => "false",
+    "pin_code" => "",
+    "auto_lock_minutes" => "30"
   }
 
   def get(key, default \\ nil) do

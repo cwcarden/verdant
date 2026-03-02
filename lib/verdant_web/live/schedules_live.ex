@@ -343,6 +343,14 @@ defmodule VerdantWeb.SchedulesLive do
           </div>
         </div>
 
+        <%!-- No-zones warning --%>
+        <%= if not Enum.any?(@schedule.schedule_zones, & &1.enabled) do %>
+          <div class="mt-3 flex items-center gap-1.5 text-xs text-warning">
+            <.icon name="hero-exclamation-triangle" class="size-3.5 shrink-0" />
+            <span>No zones enabled — this schedule will not run</span>
+          </div>
+        <% end %>
+
         <%!-- Zone table --%>
         <div class="mt-4">
           <p class="text-xs font-semibold uppercase tracking-wide text-base-content/40 mb-2">Zones</p>

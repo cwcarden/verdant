@@ -1,10 +1,12 @@
 defmodule VerdantWeb.DashboardLive do
   use VerdantWeb, :live_view
   alias Verdant.{Zones, Weather, Watering, Irrigation, Schedules, LocalTime}
+  alias Verdant.Weather.Poller, as: WeatherPoller
 
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Irrigation.subscribe()
+      WeatherPoller.subscribe()
       Process.send_after(self(), :tick, 30_000)
     end
 
@@ -13,6 +15,7 @@ defmodule VerdantWeb.DashboardLive do
      |> assign(:page_title, "Dashboard")
      |> assign(:active_tab, :dashboard)
      |> assign(:current_time, LocalTime.now())
+     |> assign(:skip_alerts, [])
      |> load_data()}
   end
 
@@ -25,6 +28,50 @@ defmodule VerdantWeb.DashboardLive do
   def handle_info({:zone_complete, _info}, socket), do: {:noreply, load_data(socket)}
   def handle_info({:watering_stopped, _info}, socket), do: {:noreply, load_data(socket)}
   def handle_info({:schedule_complete, _info}, socket), do: {:noreply, load_data(socket)}
+
+  def handle_info({:weather_updated, _reading}, socket), do: {:noreply, load_data(socket)}
+
+  def handle_info({:schedule_skipped, %{schedule_name: name, reason: reason}}, socket) do
+    alert = %{
+      schedule_name: name,
+      reason: reason,
+      message: format_skip_message(reason),
+      at: LocalTime.now()
+    }
+
+    # Keep the 5 most recent skip alerts
+    alerts = [alert | socket.assigns.skip_alerts] |> Enum.take(5)
+    {:noreply, socket |> assign(:skip_alerts, alerts) |> load_data()}
+  end
+
+  def handle_event("dismiss_skip_alerts", _params, socket) do
+    {:noreply, assign(socket, :skip_alerts, [])}
+  end
+
+  defp format_skip_message(reason) do
+    cond do
+      String.contains?(reason, "rain") and String.contains?(reason, "hours") ->
+        "Recent rainfall detected – watering not needed"
+
+      String.contains?(reason, "rain") ->
+        "Too much rain today – watering not needed"
+
+      String.contains?(reason, "wind") ->
+        "Wind too strong – watering would be ineffective"
+
+      String.contains?(reason, "below minimum") or String.contains?(reason, "below") ->
+        "Temperature too cold – skipping to prevent freeze damage"
+
+      String.contains?(reason, "above maximum") or String.contains?(reason, "above") ->
+        "Temperature too hot – watering suspended"
+
+      reason == "no enabled zones" ->
+        "No zones are enabled for this schedule"
+
+      true ->
+        reason
+    end
+  end
 
   defp load_data(socket) do
     zones = Zones.list_zones()
@@ -83,6 +130,38 @@ defmodule VerdantWeb.DashboardLive do
             <% end %>
           </div>
         </div>
+
+        <%!-- Weather skip alerts --%>
+        <%= if @skip_alerts != [] do %>
+          <div class="alert alert-warning shadow-sm">
+            <div class="flex w-full items-start justify-between gap-3">
+              <div class="flex items-start gap-3 min-w-0">
+                <.icon name="hero-cloud" class="size-5 shrink-0 mt-0.5" />
+                <div class="min-w-0">
+                  <p class="font-semibold text-sm">Watering skipped due to weather</p>
+                  <ul class="mt-1 space-y-0.5">
+                    <%= for alert <- @skip_alerts do %>
+                      <li class="text-xs opacity-80">
+                        <span class="font-medium">{alert.schedule_name}</span>
+                        · {alert.message}
+                        <span class="opacity-60">
+                          ({Calendar.strftime(alert.at, "%I:%M %p")})
+                        </span>
+                      </li>
+                    <% end %>
+                  </ul>
+                </div>
+              </div>
+              <button
+                phx-click="dismiss_skip_alerts"
+                class="btn btn-xs btn-ghost shrink-0"
+                title="Dismiss"
+              >
+                <.icon name="hero-x-mark" class="size-4" />
+              </button>
+            </div>
+          </div>
+        <% end %>
 
         <%!-- Stat cards row --%>
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">

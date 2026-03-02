@@ -14,8 +14,22 @@ defmodule VerdantWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :require_pin do
+    plug VerdantWeb.Plugs.RequirePin
+  end
+
+  # Unprotected routes — lock screen and session management
   scope "/", VerdantWeb do
     pipe_through :browser
+
+    live "/lock", LockLive, :index
+    get "/session/unlock", SessionController, :unlock
+    get "/session/lock", SessionController, :lock
+  end
+
+  # Protected routes — require PIN if enabled
+  scope "/", VerdantWeb do
+    pipe_through [:browser, :require_pin]
 
     live "/", DashboardLive, :index
     live "/manual", ManualLive, :index

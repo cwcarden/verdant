@@ -1,14 +1,16 @@
 defmodule VerdantWeb.HistoryLive do
   use VerdantWeb, :live_view
-  alias Verdant.Watering
+  alias Verdant.{Watering, Settings}
 
   def mount(_params, _session, socket) do
-    sessions = Watering.list_recent_sessions(100)
+    limit = Settings.get_integer("history_display_limit", 100)
+    sessions = Watering.list_recent_sessions(limit)
 
     {:ok,
      socket
      |> assign(:page_title, "History")
      |> assign(:active_tab, :history)
+     |> assign(:limit, limit)
      |> assign(:sessions, sessions)
      |> assign(:total_minutes, total_minutes(sessions))}
   end
@@ -27,7 +29,7 @@ defmodule VerdantWeb.HistoryLive do
         <div class="flex items-center justify-between">
           <div>
             <h1 class="text-2xl font-bold">Watering History</h1>
-            <p class="text-sm text-base-content/50 mt-0.5">Last 100 watering sessions</p>
+            <p class="text-sm text-base-content/50 mt-0.5">Last {@limit} watering sessions</p>
           </div>
           <div class="stats stats-horizontal shadow-sm bg-base-100">
             <div class="stat p-3">

@@ -1,8 +1,11 @@
 defmodule VerdantWeb.WeatherLive do
   use VerdantWeb, :live_view
   alias Verdant.Weather
+  alias Verdant.Weather.Poller, as: WeatherPoller
 
   def mount(_params, _session, socket) do
+    if connected?(socket), do: WeatherPoller.subscribe()
+
     {:ok,
      socket
      |> assign(:page_title, "Weather")
@@ -36,6 +39,14 @@ defmodule VerdantWeb.WeatherLive do
       end
 
     {:noreply, assign(socket, :fetching, false)}
+  end
+
+  def handle_info({:weather_updated, _reading}, socket) do
+    {:noreply,
+     socket
+     |> assign(:latest, Weather.latest_reading())
+     |> assign(:readings, Weather.recent_readings(48))
+     |> assign(:skip_result, Weather.should_skip_watering?())}
   end
 
   def render(assigns) do

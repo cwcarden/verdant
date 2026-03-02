@@ -63,6 +63,7 @@ defmodule Verdant.Schedules do
 
     list_schedules()
     |> Enum.filter(& &1.enabled)
+    |> Enum.filter(fn s -> Enum.any?(s.schedule_zones, & &1.enabled) end)
     |> Enum.flat_map(fn schedule ->
       days = Schedule.days_list(schedule)
 
