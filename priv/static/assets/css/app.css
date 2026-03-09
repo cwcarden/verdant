@@ -1749,6 +1749,28 @@
     width: 1.5rem;
     height: 1.5rem;
   }
+  .hero-eye-micro {
+    --hero-eye-micro: url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22currentColor%22%20aria-hidden%3D%22true%22%20data-slot%3D%22icon%22%3E%20%20%3Cpath%20d%3D%22M8%209.5a1.5%201.5%200%201%200%200-3%201.5%201.5%200%200%200%200%203Z%22%2F%3E%20%20%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M1.38%208.28a.87.87%200%200%201%200-.566%207.003%207.003%200%200%201%2013.238.006.87.87%200%200%201%200%20.566A7.003%207.003%200%200%201%201.379%208.28ZM11%208a3%203%200%201%201-6%200%203%203%200%200%201%206%200Z%22%20clip-rule%3D%22evenodd%22%2F%3E%3C%2Fsvg%3E');
+    -webkit-mask: var(--hero-eye-micro);
+    mask: var(--hero-eye-micro);
+    mask-repeat: no-repeat;
+    background-color: currentColor;
+    vertical-align: middle;
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+  }
+  .hero-eye-slash-micro {
+    --hero-eye-slash-micro: url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22currentColor%22%20aria-hidden%3D%22true%22%20data-slot%3D%22icon%22%3E%20%20%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M3.28%202.22a.75.75%200%200%200-1.06%201.06l10.5%2010.5a.75.75%200%201%200%201.06-1.06l-1.322-1.323a7.012%207.012%200%200%200%202.16-3.11.87.87%200%200%200%200-.567A7.003%207.003%200%200%200%204.82%203.76l-1.54-1.54Zm3.196%203.195%201.135%201.136A1.502%201.502%200%200%201%209.45%208.389l1.136%201.135a3%203%200%200%200-4.109-4.109Z%22%20clip-rule%3D%22evenodd%22%2F%3E%20%20%3Cpath%20d%3D%22m7.812%2010.994%201.816%201.816A7.003%207.003%200%200%201%201.38%208.28a.87.87%200%200%201%200-.566%206.985%206.985%200%200%201%201.113-2.039l2.513%202.513a3%203%200%200%200%202.806%202.806Z%22%2F%3E%3C%2Fsvg%3E');
+    -webkit-mask: var(--hero-eye-slash-micro);
+    mask: var(--hero-eye-slash-micro);
+    mask-repeat: no-repeat;
+    background-color: currentColor;
+    vertical-align: middle;
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+  }
   .hero-home {
     --hero-home: url('data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20fill%3D%22none%22%20viewBox%3D%220%200%2024%2024%22%20stroke-width%3D%221.5%22%20stroke%3D%22currentColor%22%20aria-hidden%3D%22true%22%20data-slot%3D%22icon%22%3E%20%20%3Cpath%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20d%3D%22m2.25%2012%208.954-8.955c.44-.439%201.152-.439%201.591%200L21.75%2012M4.5%209.75v10.125c0%20.621.504%201.125%201.125%201.125H9.75v-4.875c0-.621.504-1.125%201.125-1.125h2.25c.621%200%201.125.504%201.125%201.125V21h4.125c.621%200%201.125-.504%201.125-1.125V9.75M8.25%2021h8.25%22%2F%3E%3C%2Fsvg%3E');
     -webkit-mask: var(--hero-home);
@@ -2680,6 +2702,12 @@
   }
   .py-12 {
     padding-block: calc(var(--spacing) * 12);
+  }
+  .pr-3 {
+    padding-right: calc(var(--spacing) * 3);
+  }
+  .pr-10 {
+    padding-right: calc(var(--spacing) * 10);
   }
   .pb-4 {
     padding-bottom: calc(var(--spacing) * 4);

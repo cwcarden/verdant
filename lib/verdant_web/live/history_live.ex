@@ -18,7 +18,7 @@ defmodule VerdantWeb.HistoryLive do
   defp total_minutes(sessions) do
     sessions
     |> Enum.filter(&(!&1.skipped && &1.actual_duration_seconds))
-    |> Enum.sum_by(& &1.actual_duration_seconds)
+    |> Enum.map(& &1.actual_duration_seconds) |> Enum.sum()
     |> div(60)
   end
 

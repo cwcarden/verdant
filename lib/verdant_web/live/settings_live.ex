@@ -219,7 +219,8 @@ defmodule VerdantWeb.SettingsLive do
      |> assign(:active_tab, :settings)
      |> assign(:settings, settings)
      |> assign(:setting_groups, @setting_groups)
-     |> assign(:saved_keys, MapSet.new())}
+     |> assign(:saved_keys, MapSet.new())
+     |> assign(:show_password_fields, MapSet.new())}
   end
 
   defp load_all_settings do
@@ -246,6 +247,17 @@ defmodule VerdantWeb.SettingsLive do
      |> put_flash(:info, "Settings saved")
      |> assign(:settings, load_all_settings())
      |> assign(:saved_keys, saved_keys)}
+  end
+
+  def handle_event("toggle_password_field", %{"key" => key}, socket) do
+    updated =
+      if MapSet.member?(socket.assigns.show_password_fields, key) do
+        MapSet.delete(socket.assigns.show_password_fields, key)
+      else
+        MapSet.put(socket.assigns.show_password_fields, key)
+      end
+
+    {:noreply, assign(socket, :show_password_fields, updated)}
   end
 
   def handle_event("test_email", _params, socket) do
@@ -376,6 +388,28 @@ defmodule VerdantWeb.SettingsLive do
                                   else: "Disabled"}
                               </span>
                             </label>
+                          <% field.type == "password" -> %>
+                            <div class="relative">
+                              <input
+                                type={if MapSet.member?(@show_password_fields, field.key), do: "text", else: "password"}
+                                name={"settings[#{field.key}]"}
+                                class="input input-bordered input-sm w-full pr-10"
+                                placeholder={field.placeholder}
+                                value={Map.get(@settings, field.key, "")}
+                              />
+                              <button
+                                type="button"
+                                class="absolute inset-y-0 right-0 flex items-center pr-3 text-base-content/40 hover:text-base-content/70"
+                                phx-click="toggle_password_field"
+                                phx-value-key={field.key}
+                              >
+                                <%= if MapSet.member?(@show_password_fields, field.key) do %>
+                                  <.icon name="hero-eye-slash-micro" class="size-4" />
+                                <% else %>
+                                  <.icon name="hero-eye-micro" class="size-4" />
+                                <% end %>
+                              </button>
+                            </div>
                           <% true -> %>
                             <input
                               type={field.type}
