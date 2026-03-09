@@ -52,13 +52,14 @@ if config_env() == :prod do
   config :verdant, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :verdant, VerdantWeb.Endpoint,
-    url: [host: host, port: 4000, scheme: "http"],
-    http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/bandit/Bandit.html#t:options/0
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
-      ip: {0, 0, 0, 0}
+    url: [host: host, port: 4000, scheme: "https"],
+    http: false,
+    https: [
+      port: 4000,
+      ip: {0, 0, 0, 0},
+      cipher_suite: :compatible,
+      keyfile: "priv/ssl/192.168.1.186+1-key.pem",
+      certfile: "priv/ssl/192.168.1.186+1.pem"
     ],
     secret_key_base: secret_key_base,
     check_origin: false
