@@ -80,6 +80,24 @@ defmodule VerdantWeb.ZonesLive do
     end
   end
 
+  def handle_event("delete_zone", %{"id" => id}, socket) do
+    zone = Zones.get_zone!(id)
+
+    case Zones.delete_zone(zone) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Zone \"#{zone.name}\" deleted")
+         |> assign(:zones, Zones.list_zones())
+         |> assign(:editing_zone, nil)
+         |> assign(:form, nil)
+         |> assign(:show_new_form, false)}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not delete zone — it may have active schedules")}
+    end
+  end
+
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} active_tab={@active_tab}>
@@ -157,13 +175,23 @@ defmodule VerdantWeb.ZonesLive do
                       />
                     </td>
                     <td class="text-right">
-                      <button
-                        phx-click="edit_zone"
-                        phx-value-id={zone.id}
-                        class="btn btn-ghost btn-xs"
-                      >
-                        <.icon name="hero-pencil-square" class="size-4" /> Edit
-                      </button>
+                      <div class="flex gap-1 justify-end">
+                        <button
+                          phx-click="edit_zone"
+                          phx-value-id={zone.id}
+                          class="btn btn-ghost btn-xs"
+                        >
+                          <.icon name="hero-pencil-square" class="size-4" /> Edit
+                        </button>
+                        <button
+                          phx-click="delete_zone"
+                          phx-value-id={zone.id}
+                          phx-confirm={"Delete zone \"#{zone.name}\"? This cannot be undone."}
+                          class="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                        >
+                          <.icon name="hero-trash" class="size-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
 
